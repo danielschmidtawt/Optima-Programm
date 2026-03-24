@@ -1,7 +1,7 @@
-import type { Eingaben, Ergebnisse } from '../calc'
+import type { Ergebnisse } from '../calc'
+import { kategorieLabel } from '../calc'
 
 interface Props {
-  eingaben: Eingaben
   ergebnisse: Ergebnisse
 }
 
@@ -39,9 +39,72 @@ function AmpelDot({ farbe }: { farbe: 'gruen' | 'gelb' | 'rot' }) {
   )
 }
 
-export function ResultsPanel({ eingaben, ergebnisse: e }: Props) {
+export function ResultsPanel({ ergebnisse: e }: Props) {
   return (
     <section className="mb-6 space-y-6">
+      {/* Anlagenvorschlag aus Produktkatalog – ganz oben, prominent */}
+      <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6 border-2 border-brand-300">
+        <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagenvorschlag</h2>
+        {e.empfohleneAnlage ? (
+          <div>
+            <div className="rounded-xl bg-brand-50 border border-brand-200 p-4 mb-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-lg font-bold text-brand-800">{e.empfohleneAnlage.name}</p>
+                  <p className="text-sm text-brand-600 mt-0.5">Art.Nr. {e.empfohleneAnlage.artNr} · {kategorieLabel(e.empfohleneAnlage.kategorie)}</p>
+                </div>
+                <span className="rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white whitespace-nowrap">
+                  Empfohlen
+                </span>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-brand-500">Harzvolumen</p>
+                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.harz} Liter</p>
+                </div>
+                <div>
+                  <p className="text-xs text-brand-500">Tank / Durchmesser</p>
+                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.tank} / {e.empfohleneAnlage.zoll}"</p>
+                </div>
+                <div>
+                  <p className="text-xs text-brand-500">Durchfluss Normal</p>
+                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.durchflussNormal} l/min</p>
+                </div>
+                <div>
+                  <p className="text-xs text-brand-500">Durchfluss Spitze</p>
+                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.durchflussSpitze} l/min</p>
+                </div>
+              </div>
+            </div>
+
+            {e.alternativeAnlagen.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-2">Alternativen</p>
+                <div className="space-y-2">
+                  {e.alternativeAnlagen.map(a => (
+                    <div key={a.artNr} className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="font-medium text-slate-700">{a.name}</span>
+                      <span className="text-slate-400">Art.Nr. {a.artNr}</span>
+                      <span className="text-slate-500">{a.harz} l</span>
+                      <span className="text-slate-500">{a.durchflussSpitze} l/min Spitze</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+            <p className="text-sm font-medium text-amber-800">
+              Keine passende Standardanlage im Katalog gefunden – Sonderlösung erforderlich.
+            </p>
+            <p className="text-xs text-amber-600 mt-1">
+              Benötigt: {fmt(e.harzmengeProFlasche)} l Harz/Flasche, {fmt(e.volumenstromEnthaerter * 60, 1)} l/min Spitzendurchfluss.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Harzmenge – Prominent */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Harzmenge</h2>
@@ -60,12 +123,6 @@ export function ResultsPanel({ eingaben, ergebnisse: e }: Props) {
           <StatCard label="Volumenstrom durch Enthärter VE" value={fmt(e.volumenstromEnthaerter, 3)} unit="l/s" />
           <StatCard label="Druckverlust ΔpE" value={fmt(e.druckverlust, 2)} unit="bar" />
         </div>
-        {eingaben.anlagentyp === 'parallel' && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <StatCard label="Normalbetrieb: VE/2 pro Flasche" value={fmt(e.veProFlascheNormal, 3)} unit="l/s" />
-            <StatCard label="Regenerationsmodus: VE auf 1 Flasche" value={fmt(e.veRegenModus, 3)} unit="l/s" />
-          </div>
-        )}
       </div>
 
       {/* Regeneration */}

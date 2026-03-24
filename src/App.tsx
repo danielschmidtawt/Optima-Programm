@@ -71,6 +71,8 @@ export default function App() {
         <AnlagenTypSelector
           value={eingaben.anlagentyp}
           onChange={(v: AnlagenTyp) => update('anlagentyp', v)}
+          personen={eingaben.personen}
+          anlagentypEmpfehlung={ergebnisse.anlagentypEmpfehlung}
         />
 
         {/* BW Override Info */}
@@ -110,7 +112,7 @@ export default function App() {
         <AdvancedSettings eingaben={eingaben} update={update} />
 
         {/* Ergebnisse */}
-        <ResultsPanel eingaben={eingaben} ergebnisse={ergebnisse} />
+        <ResultsPanel ergebnisse={ergebnisse} />
 
         {/* Einheitenumrechner */}
         <UnitConverter />

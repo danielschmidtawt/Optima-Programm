@@ -9,26 +9,25 @@ const typen: { key: AnlagenTyp; label: string; desc: string }[] = [
   {
     key: 'duplex',
     label: 'Duplex (Pendel)',
-    desc: '2 Flaschen abwechselnd, unterbrechungsfreie Versorgung.',
-  },
-  {
-    key: 'parallel',
-    label: 'Parallel',
-    desc: '2 Flaschen gleichzeitig, halber Druckverlust. Bei Regen einer Flasche: andere solo.',
+    desc: '2 Flaschen abwechselnd, unterbrechungsfreie 24/7 Versorgung.',
   },
 ]
 
 interface Props {
   value: AnlagenTyp
   onChange: (v: AnlagenTyp) => void
+  personen: number
+  anlagentypEmpfehlung: string
 }
 
-export function AnlagenTypSelector({ value, onChange }: Props) {
+export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfehlung }: Props) {
+  const duplexEmpfohlen = personen > 20
+
   return (
     <section className="no-print mb-6">
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagentyp</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           {typen.map(t => (
             <button
               key={t.key}
@@ -50,11 +49,23 @@ export function AnlagenTypSelector({ value, onChange }: Props) {
                 }`}>
                   {t.label}
                 </span>
+                {t.key === 'duplex' && duplexEmpfohlen && (
+                  <span className="ml-auto rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                    Empfohlen
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 pl-5 text-xs leading-relaxed text-slate-500">{t.desc}</p>
             </button>
           ))}
         </div>
+
+        {/* Empfehlungshinweis */}
+        {duplexEmpfohlen && value === 'simplex' && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+            <p className="text-xs text-amber-800">{anlagentypEmpfehlung}</p>
+          </div>
+        )}
       </div>
     </section>
   )
