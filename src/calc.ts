@@ -24,7 +24,7 @@ export interface Eingaben {
 }
 
 // ── Produktkatalog ─────────────────────────────────────────────────────────
-export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'einzel_1_5' | 'einzel_2'
+export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'einzel_1_5' | 'twin_1_5' | 'einzel_2'
 
 export interface Anlage {
   name: string
@@ -66,6 +66,12 @@ export const ANLAGEN_KATALOG: Anlage[] = [
   { name: 'pH-Optima MFH 200/WS1,5-CK',       artNr: '4419', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 250/WS1,5-CK',       artNr: '4420', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 350/WS1,5-CK',       artNr: '4421', harz: 350, tank: '2469',   zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
+  // === PENDEL 2x CLACK 1,5" ===
+  { name: 'pH-Optima MFH 100/2xWS1,5-CK',     artNr: '4412', harz: 100, tank: '1452, 4"', zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 33.1,  durchflussSpitze: 66.2,   kategorie: 'twin_1_5', betriebsart: 'duplex' },
+  { name: 'pH-Optima MFH 150/2xWS1,5-CK',     artNr: '4413', harz: 150, tank: '1665-4',   zoll: 16, querschnitt: 12.972, harzhoehe: 11.6, durchflussNormal: 43.2,  durchflussSpitze: 86.5,   kategorie: 'twin_1_5', betriebsart: 'duplex' },
+  { name: 'pH-Optima MFH 200/2xWS1,5-CK',     artNr: '4414', harz: 200, tank: '1865, 4"', zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
+  { name: 'pH-Optima MFH 250/2xWS1,5-CK',     artNr: '4415', harz: 250, tank: '2160, 4"', zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
+  { name: 'pH-Optima MFH 350/2xWS1,5-CK',     artNr: '4416', harz: 350, tank: '2469, 4"', zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
   // === EINZELANLAGE CLACK 2" ===
   { name: 'pH-Optima MFH 200/WS2-CK',         artNr: '4422', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_2', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 250/WS2-CK',         artNr: '4423', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_2', betriebsart: 'simplex' },
@@ -76,6 +82,7 @@ const KATEGORIE_LABELS: Record<AnlagenKategorie, string> = {
   einzel_1: 'Einzelanlage Clack 1"',
   twin_1: 'Pendel Twin Clack 1"',
   einzel_1_5: 'Einzelanlage Clack 1,5"',
+  twin_1_5: 'Pendel 2x Clack 1,5"',
   einzel_2: 'Einzelanlage Clack 2"',
 }
 
