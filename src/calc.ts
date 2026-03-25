@@ -2,7 +2,7 @@
 // Alle Berechnungen für Ionenaustauscher-Enthärtungsanlagen
 // Normen: SVGW W3 (Spitzenvolumenstrom), EN 14743 (Enthärtungsanlagen)
 
-export type AnlagenTyp = 'simplex' | 'duplex'
+export type AnlagenTyp = 'simplex' | 'duplex' | 'parallel'
 
 export interface Eingaben {
   projektname: string
@@ -24,20 +24,26 @@ export interface Eingaben {
 }
 
 // ── Produktkatalog ─────────────────────────────────────────────────────────
-export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'einzel_1_5' | 'twin_1_5' | 'einzel_2'
+export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'einzel_1_5' | 'parallel_1_5' | 'einzel_2'
 
 export interface Anlage {
   name: string
   artNr: string
-  harz: number           // Liter Harzvolumen
+  harz: number           // Liter Harzvolumen gesamt
   tank: string           // Tankbezeichnung
-  zoll: number           // Zoll Durchmesser
-  querschnitt: number    // dm²
-  harzhoehe: number      // dm
+  zoll: number           // Zoll Durchmesser (Einzeltank)
+  querschnitt: number    // dm² (Einzel-Querschnitt)
+  harzhoehe: number      // dm (Harzhöhe im Tank / pro Tank bei Parallel)
   durchflussNormal: number  // l/min
   durchflussSpitze: number  // l/min
   kategorie: AnlagenKategorie
-  betriebsart: AnlagenTyp   // simplex oder duplex
+  betriebsart: AnlagenTyp
+  // Parallel-spezifische Felder (nur bei parallel_1_5)
+  harzProTank?: number          // Liter pro Tank
+  querschnittGesamt?: number    // dm² Gesamt-Querschnitt (2 × Einzel)
+  maxAnschlussFluss?: number    // l/min Ventilbegrenzung
+  ventilBegrenztNormal?: boolean
+  ventilBegrenztSpitze?: boolean
 }
 
 export const ANLAGEN_KATALOG: Anlage[] = [
@@ -66,12 +72,14 @@ export const ANLAGEN_KATALOG: Anlage[] = [
   { name: 'pH-Optima MFH 200/WS1,5-CK',       artNr: '4419', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 250/WS1,5-CK',       artNr: '4420', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 350/WS1,5-CK',       artNr: '4421', harz: 350, tank: '2469',   zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  // === PENDEL 2x CLACK 1,5" ===
-  { name: 'pH-Optima MFH 100/2xWS1,5-CK',     artNr: '4412', harz: 100, tank: '1452, 4"', zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 33.1,  durchflussSpitze: 66.2,   kategorie: 'twin_1_5', betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 150/2xWS1,5-CK',     artNr: '4413', harz: 150, tank: '1665-4',   zoll: 16, querschnitt: 12.972, harzhoehe: 11.6, durchflussNormal: 43.2,  durchflussSpitze: 86.5,   kategorie: 'twin_1_5', betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 200/2xWS1,5-CK',     artNr: '4414', harz: 200, tank: '1865, 4"', zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 250/2xWS1,5-CK',     artNr: '4415', harz: 250, tank: '2160, 4"', zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 350/2xWS1,5-CK',     artNr: '4416', harz: 350, tank: '2469, 4"', zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'twin_1_5', betriebsart: 'duplex' },
+  // === PARALLEL 2x CLACK 1,5" ===
+  // Beide Tanks gleichzeitig durchströmt über Parallelverteiler 1,5" Ein-/Ausgang
+  // Ventilbegrenzung: 1,5" (DN40, ~40mm) → max. ca. 150.8 l/min bei 2 m/s
+  { name: 'pH-Optima MFH 100/2xWS1,5-CK',     artNr: '4412', harz: 100, tank: '1452, 4"', zoll: 14, querschnitt: 9.931,  harzhoehe: 5.0,  durchflussNormal: 66.2,   durchflussSpitze: 132.4,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 50,  querschnittGesamt: 19.863, maxAnschlussFluss: 150.8, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
+  { name: 'pH-Optima MFH 150/2xWS1,5-CK',     artNr: '4413', harz: 150, tank: '1665-4',   zoll: 16, querschnitt: 12.972, harzhoehe: 5.8,  durchflussNormal: 86.5,   durchflussSpitze: 150.8,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 75,  querschnittGesamt: 25.943, maxAnschlussFluss: 150.8, ventilBegrenztNormal: false, ventilBegrenztSpitze: true },
+  { name: 'pH-Optima MFH 200/2xWS1,5-CK',     artNr: '4414', harz: 200, tank: '1865, 4"', zoll: 18, querschnitt: 16.417, harzhoehe: 6.1,  durchflussNormal: 109.4,  durchflussSpitze: 150.8,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 100, querschnittGesamt: 32.835, maxAnschlussFluss: 150.8, ventilBegrenztNormal: false, ventilBegrenztSpitze: true },
+  { name: 'pH-Optima MFH 250/2xWS1,5-CK',     artNr: '4415', harz: 250, tank: '2160, 4"', zoll: 21, querschnitt: 22.346, harzhoehe: 5.6,  durchflussNormal: 149.0,  durchflussSpitze: 150.8,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 125, querschnittGesamt: 44.692, maxAnschlussFluss: 150.8, ventilBegrenztNormal: false, ventilBegrenztSpitze: true },
+  { name: 'pH-Optima MFH 350/2xWS1,5-CK',     artNr: '4416', harz: 350, tank: '2469, 4"', zoll: 24, querschnitt: 29.186, harzhoehe: 6.0,  durchflussNormal: 150.8,  durchflussSpitze: 150.8,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 175, querschnittGesamt: 58.373, maxAnschlussFluss: 150.8, ventilBegrenztNormal: true,  ventilBegrenztSpitze: true },
   // === EINZELANLAGE CLACK 2" ===
   { name: 'pH-Optima MFH 200/WS2-CK',         artNr: '4422', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_2', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 250/WS2-CK',         artNr: '4423', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_2', betriebsart: 'simplex' },
@@ -82,7 +90,7 @@ const KATEGORIE_LABELS: Record<AnlagenKategorie, string> = {
   einzel_1: 'Einzelanlage Clack 1"',
   twin_1: 'Pendel Twin Clack 1"',
   einzel_1_5: 'Einzelanlage Clack 1,5"',
-  twin_1_5: 'Pendel 2x Clack 1,5"',
+  parallel_1_5: 'Parallel 2x Clack 1,5"',
   einzel_2: 'Einzelanlage Clack 2"',
 }
 
@@ -188,11 +196,19 @@ export function berechne(e: Eingaben): Ergebnisse {
   // Druckverlust ΔpE (vereinfacht proportional zu V²)
   // Simplex: voller Volumenstrom durch 1 Flasche
   // Duplex: voller Volumenstrom durch 1 Flasche (nur 1 aktiv im Pendelbetrieb)
+  // Parallel: halber Volumenstrom pro Flasche (beide gleichzeitig durchströmt)
   const vaRef = e.volumenstromApparat
   const dpRef = e.druckverlustApparat
-  const druckverlust = vaRef > 0
-    ? dpRef * Math.pow(volumenstromEnthaerter / vaRef, 2)
-    : 0
+  let druckverlust = 0
+  if (vaRef > 0) {
+    if (e.anlagentyp === 'parallel') {
+      // Beide Tanks gleichzeitig → halber Volumenstrom pro Tank → 1/4 Druckverlust
+      const veProTank = volumenstromEnthaerter / 2
+      druckverlust = dpRef * Math.pow(veProTank / vaRef, 2)
+    } else {
+      druckverlust = dpRef * Math.pow(volumenstromEnthaerter / vaRef, 2)
+    }
+  }
 
   // ── Harzmenge ──────────────────────────────────────────────────────────────
   // Benötigte Kapazität für einen Regenerationszyklus
@@ -211,22 +227,36 @@ export function berechne(e: Eingaben): Ergebnisse {
     anzahlFlaschen = 1
     harzmengeProFlasche = harzFuerEinenZyklus
     harzmengeGesamt = harzmengeProFlasche
-  } else {
+  } else if (e.anlagentyp === 'duplex') {
     // Duplex (Pendel): 2 Flaschen abwechselnd, nur 1 aktiv
     // Jede Flasche muss allein den vollen Zyklus abdecken können
     anzahlFlaschen = 2
     harzmengeProFlasche = Math.ceil(harzFuerEinenZyklus * 10) / 10 // Aufrunden auf 0.1 l
     harzmengeGesamt = harzmengeProFlasche * 2
+  } else {
+    // Parallel: 2 Tanks gleichzeitig durchströmt, Harz auf 2 Tanks verteilt
+    // Gesamtkapazität = Zyklusbedarf, aufgeteilt auf 2 Tanks
+    anzahlFlaschen = 2
+    harzmengeGesamt = Math.ceil(harzFuerEinenZyklus * 10) / 10
+    harzmengeProFlasche = Math.ceil((harzmengeGesamt / 2) * 10) / 10
   }
 
   // ── Regenerationsintervall ─────────────────────────────────────────────────
   const kapazitaetProFlasche = harzmengeProFlasche * HARZ_KAPAZITAET // °dH·m³
   const tagesbedarf = (durchEnthaerter / 1000) * e.rohwasserhaerte // °dH·m³ pro Tag
 
-  // Simplex & Duplex: jeweils 1 Flasche nimmt den vollen Tagesbedarf auf
-  const regenIntervallProFlasche = tagesbedarf > 0
-    ? kapazitaetProFlasche / tagesbedarf
-    : Infinity
+  // Simplex & Parallel: gesamte Kapazität nimmt den vollen Tagesbedarf auf
+  // Duplex: jeweils 1 Flasche nimmt den vollen Tagesbedarf auf (andere in Standby)
+  let regenIntervallProFlasche: number
+  if (tagesbedarf <= 0) {
+    regenIntervallProFlasche = Infinity
+  } else if (e.anlagentyp === 'parallel') {
+    // Parallel: Gesamtkapazität beider Tanks / Tagesbedarf
+    const kapazitaetGesamt = harzmengeGesamt * HARZ_KAPAZITAET
+    regenIntervallProFlasche = kapazitaetGesamt / tagesbedarf
+  } else {
+    regenIntervallProFlasche = kapazitaetProFlasche / tagesbedarf
+  }
 
   // Ampelsystem (EN 14743: max. 4 Tage empfohlen)
   let regenAmpel: 'gruen' | 'gelb' | 'rot'
@@ -242,10 +272,12 @@ export function berechne(e: Eingaben): Ergebnisse {
   // Regenerationen pro Monat (Gesamtsystem):
   // Simplex: 1 Flasche regeneriert alle <interval> Tage → 30/interval
   // Duplex:  Flaschen alternieren, System regeneriert 1 Flasche pro Intervall → 30/interval
+  // Parallel: Beide Tanks gleichzeitig → Gesamtharz pro Regeneration
   const regenProMonat = regenIntervallProFlasche > 0
     ? 30 / regenIntervallProFlasche
     : 0
-  const salzProRegen = harzmengeProFlasche * SALZ_PRO_LITER_HARZ // kg
+  // Bei Parallel wird die gesamte Harzmenge regeneriert (beide Tanks)
+  const salzProRegen = (e.anlagentyp === 'parallel' ? harzmengeGesamt : harzmengeProFlasche) * SALZ_PRO_LITER_HARZ // kg
   const salzverbrauchMonat = regenProMonat * salzProRegen
   const salzverbrauchJahr = salzverbrauchMonat * 12
   const betriebskostenJahr = salzverbrauchJahr * e.salzkosten
@@ -264,12 +296,15 @@ export function berechne(e: Eingaben): Ergebnisse {
   // ── Empfehlungstext ────────────────────────────────────────────────────────
   const typText = e.anlagentyp === 'simplex'
     ? 'Simplex-Anlage (1 Harzflasche)'
-    : 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
+    : e.anlagentyp === 'duplex'
+      ? 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
+      : 'Parallel-Anlage (2 Tanks, gleichzeitig durchströmt)'
 
   const empfehlung = [
     `Empfohlene Konfiguration: ${typText}.`,
     `Gesamtes Harzvolumen: ${harzmengeGesamt.toFixed(1)} Liter` +
-      (anzahlFlaschen === 2 ? ` (2 × ${harzmengeProFlasche.toFixed(1)} Liter)` : '') + '.',
+      (e.anlagentyp === 'parallel' ? ` (2 Tanks × ${harzmengeProFlasche.toFixed(1)} Liter)` :
+       anzahlFlaschen === 2 ? ` (2 × ${harzmengeProFlasche.toFixed(1)} Liter)` : '') + '.',
     `Regenerationsintervall: ca. ${Math.min(regenIntervallProFlasche, 999).toFixed(1)} Tage pro Flasche.`,
     `Salzvorrat: ca. ${salzverbrauchMonat.toFixed(1)} kg/Monat (${salzverbrauchJahr.toFixed(0)} kg/Jahr).`,
     regenAmpel === 'rot'
@@ -281,8 +316,11 @@ export function berechne(e: Eingaben): Ergebnisse {
 
   // ── Anlagenvorschlag aus Produktkatalog ──────────────────────────────────
   const volumenstromEnthaerterLMin = volumenstromEnthaerter * 60 // l/s → l/min
+  // Parallel: Katalog-Harz = Gesamtharz (beide Tanks), daher mit harzmengeGesamt matchen
+  // Simplex/Duplex: Katalog-Harz = Harz pro Flasche
+  const harzFuerMatching = e.anlagentyp === 'parallel' ? harzmengeGesamt : harzmengeProFlasche
   const { empfohlen: empfohleneAnlage, alternativen: alternativeAnlagen } =
-    findePassendeAnlage(e.anlagentyp, harzmengeProFlasche, volumenstromEnthaerterLMin)
+    findePassendeAnlage(e.anlagentyp, harzFuerMatching, volumenstromEnthaerterLMin)
 
   return {
     spitzenvolumenstrom,

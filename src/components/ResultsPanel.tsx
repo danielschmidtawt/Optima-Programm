@@ -60,21 +60,46 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-brand-500">Harzvolumen</p>
-                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.harz} Liter</p>
+                  <p className="text-sm font-semibold text-brand-800">
+                    {e.empfohleneAnlage.harz} Liter
+                    {e.empfohleneAnlage.harzProTank != null && (
+                      <span className="font-normal text-brand-500"> ({e.empfohleneAnlage.harzProTank} l/Tank)</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-brand-500">Tank / Durchmesser</p>
-                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.tank} / {e.empfohleneAnlage.zoll}"</p>
+                  <p className="text-sm font-semibold text-brand-800">
+                    {e.empfohleneAnlage.tank} / {e.empfohleneAnlage.zoll}"
+                    {e.empfohleneAnlage.querschnittGesamt != null && (
+                      <span className="font-normal text-brand-500"> (2×{e.empfohleneAnlage.querschnitt} dm²)</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-brand-500">Durchfluss Normal</p>
-                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.durchflussNormal} l/min</p>
+                  <p className="text-sm font-semibold text-brand-800">
+                    {e.empfohleneAnlage.durchflussNormal} l/min
+                    {e.empfohleneAnlage.ventilBegrenztNormal && (
+                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">1,5" begrenzt</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-brand-500">Durchfluss Spitze</p>
-                  <p className="text-sm font-semibold text-brand-800">{e.empfohleneAnlage.durchflussSpitze} l/min</p>
+                  <p className="text-sm font-semibold text-brand-800">
+                    {e.empfohleneAnlage.durchflussSpitze} l/min
+                    {e.empfohleneAnlage.ventilBegrenztSpitze && (
+                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">1,5" begrenzt</span>
+                    )}
+                  </p>
                 </div>
               </div>
+              {(e.empfohleneAnlage.ventilBegrenztNormal || e.empfohleneAnlage.ventilBegrenztSpitze) && (
+                <p className="mt-2 text-xs text-amber-600">
+                  Durchfluss begrenzt durch 1,5" Anschluss (DN40, max. {e.empfohleneAnlage.maxAnschlussFluss} l/min bei 2 m/s)
+                </p>
+              )}
             </div>
 
             {e.alternativeAnlagen.length > 0 && (
@@ -110,8 +135,8 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Harzmenge</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard label="Gesamte Harzmenge" value={fmt(e.harzmengeGesamt)} unit="Liter" large accent />
-          <StatCard label="Pro Flasche" value={fmt(e.harzmengeProFlasche)} unit="Liter" large />
-          <StatCard label="Anzahl Flaschen" value={String(e.anzahlFlaschen)} large />
+          <StatCard label={e.anzahlFlaschen === 2 ? 'Pro Flasche / Tank' : 'Pro Flasche'} value={fmt(e.harzmengeProFlasche)} unit="Liter" large />
+          <StatCard label={e.anzahlFlaschen === 2 ? 'Anzahl Flaschen / Tanks' : 'Anzahl Flaschen'} value={String(e.anzahlFlaschen)} large />
         </div>
       </div>
 
