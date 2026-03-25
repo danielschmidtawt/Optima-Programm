@@ -11,6 +11,11 @@ const typen: { key: AnlagenTyp; label: string; desc: string }[] = [
     label: 'Duplex (Pendel)',
     desc: '2 Flaschen abwechselnd, unterbrechungsfreie 24/7 Versorgung.',
   },
+  {
+    key: 'parallel',
+    label: 'Parallel',
+    desc: '2 Tanks gleichzeitig durchströmt über Parallelverteiler. Halber Druckverlust, bei Regeneration kein Weichwasser.',
+  },
 ]
 
 interface Props {
@@ -27,7 +32,7 @@ export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfeh
     <section className="no-print mb-6">
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagentyp</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           {typen.map(t => (
             <button
               key={t.key}

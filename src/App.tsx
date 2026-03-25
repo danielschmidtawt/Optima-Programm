@@ -61,6 +61,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-brand-50/30 to-slate-100">
+      {/* Print Header – nur im Druck sichtbar */}
+      <div className="print-header print-only hidden">
+        <div>
+          <h1>{eingaben.projektname || 'pH-Optima Konfiguration V1'}</h1>
+          <p className="print-sub">
+            Bearbeiter: {eingaben.bearbeiter || '–'} · Anlagentyp: {
+              eingaben.anlagentyp === 'simplex' ? 'Simplex' :
+              eingaben.anlagentyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
+            } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → {eingaben.resthaerte} °dH
+          </p>
+        </div>
+        <div className="print-meta">
+          <p className="print-logo">pH-Optima Konfiguration V1</p>
+          <p>{new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+        </div>
+      </div>
+
       <Header />
 
       <main className="mx-auto max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
@@ -121,15 +138,9 @@ export default function App() {
         <PrintButton />
       </main>
 
-      {/* Print Header */}
-      <div className="print-only hidden fixed top-0 left-0 right-0 bg-white p-6 border-b">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">{eingaben.projektname || 'pH-Optima Konfiguration'}</h1>
-            <p className="text-sm text-slate-500">Bearbeiter: {eingaben.bearbeiter || '–'}</p>
-          </div>
-          <p className="text-sm text-slate-500">{new Date().toLocaleDateString('de-CH')}</p>
-        </div>
+      {/* Print Footer – nur im Druck sichtbar */}
+      <div className="print-footer print-only hidden">
+        pH-Optima Konfiguration V1 · Erstellt am {new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · Alle Angaben ohne Gewähr
       </div>
     </div>
   )
