@@ -42,6 +42,32 @@ function AmpelDot({ farbe }: { farbe: 'gruen' | 'gelb' | 'rot' }) {
 export function ResultsPanel({ ergebnisse: e }: Props) {
   return (
     <section className="mb-6 space-y-6">
+      {/* ── Druck-Zusammenfassung (nur im Print sichtbar) ── */}
+      <div className="hidden print-only">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', marginBottom: '6pt' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Harzmenge gesamt</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.harzmengeGesamt)} Liter {e.anzahlFlaschen === 2 ? `(${e.anzahlFlaschen}× ${fmt(e.harzmengeProFlasche)} l)` : ''}</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Regenerationsintervall</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.regenIntervallProFlasche)} Tage</td>
+            </tr>
+            <tr>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Salzverbrauch/Jahr</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.salzverbrauchJahr, 0)} kg ({fmt(e.betriebskostenJahr, 0)} CHF)</td>
+            </tr>
+            <tr>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Verschneidung</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.weichwasserAnteil, 0)}% Weichwasser / {fmt(e.rohwasserAnteil, 0)}% Rohwasser</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Natrium nach Enthärtung</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.natriumNachEnthaertung)} mg/l {e.natriumWarnung ? '⚠' : '✓'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       {/* Anlagenvorschlag aus Produktkatalog – ganz oben, prominent */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6 border-2 border-brand-300">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagenvorschlag</h2>
