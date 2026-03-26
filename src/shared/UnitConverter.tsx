@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { dhToFh, dhToMmol, fhToDh, fhToMmol, mmolToDh, mmolToFh } from '../calc'
+import { dhToFh, dhToMmol, fhToDh, fhToMmol, mmolToDh, mmolToFh } from '../apps/rechner/calc'
 
 type Unit = 'dh' | 'fh' | 'mmol'
 
