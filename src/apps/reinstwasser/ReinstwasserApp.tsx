@@ -87,19 +87,31 @@ export default function ReinstwasserApp() {
         <section className="mb-6 mt-6">
           <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-slate-800">Harz-Kapazität</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Leitwert Frisch" unit="µS/cm">
-                <input type="number" value={harz.leitwertFrisch || ''} onChange={e => updateHarz('leitwertFrisch', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-16'} placeholder="0" min={0} />
-              </Field>
-              <Field label="Menge Frisch" unit="L">
-                <input type="number" value={harz.mengeFrisch || ''} onChange={e => updateHarz('mengeFrisch', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-10'} placeholder="0" min={0} />
-              </Field>
-              <Field label="Leitwert Bestand" unit="µS/cm">
-                <input type="number" value={harz.leitwertBestand || ''} onChange={e => updateHarz('leitwertBestand', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-16'} placeholder="0" min={0} />
-              </Field>
-              <Field label="Menge Bestand" unit="L">
-                <input type="number" value={harz.mengeBestand || ''} onChange={e => updateHarz('mengeBestand', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-10'} placeholder="0" min={0} />
-              </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Frisch */}
+              <div className="rounded-xl border border-slate-200 bg-white/50 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-500">Frischwasser</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Leitwert" unit="µS/cm">
+                    <input type="number" value={harz.leitwertFrisch || ''} onChange={e => updateHarz('leitwertFrisch', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-16'} placeholder="0" min={0} />
+                  </Field>
+                  <Field label="Menge" unit="L">
+                    <input type="number" value={harz.mengeFrisch || ''} onChange={e => updateHarz('mengeFrisch', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-10'} placeholder="0" min={0} />
+                  </Field>
+                </div>
+              </div>
+              {/* Bestand */}
+              <div className="rounded-xl border border-slate-200 bg-white/50 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Bestand</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Leitwert" unit="µS/cm">
+                    <input type="number" value={harz.leitwertBestand || ''} onChange={e => updateHarz('leitwertBestand', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-16'} placeholder="0" min={0} />
+                  </Field>
+                  <Field label="Menge" unit="L">
+                    <input type="number" value={harz.mengeBestand || ''} onChange={e => updateHarz('mengeBestand', parseFloat(e.target.value) || 0)} className={inputClass + ' pr-10'} placeholder="0" min={0} />
+                  </Field>
+                </div>
+              </div>
             </div>
             <div className="mt-4 max-w-xs">
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Harzgrösse</label>
