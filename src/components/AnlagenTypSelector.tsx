@@ -26,7 +26,7 @@ interface Props {
 }
 
 export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfehlung }: Props) {
-  const duplexEmpfohlen = personen > 20
+  const parallelEmpfohlen = personen > 20
 
   return (
     <section className="no-print mb-6">
@@ -54,7 +54,7 @@ export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfeh
                 }`}>
                   {t.label}
                 </span>
-                {t.key === 'duplex' && duplexEmpfohlen && (
+                {t.key === 'parallel' && parallelEmpfohlen && (
                   <span className="ml-auto rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white">
                     Empfohlen
                   </span>
@@ -66,7 +66,7 @@ export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfeh
         </div>
 
         {/* Empfehlungshinweis */}
-        {duplexEmpfohlen && value === 'simplex' && (
+        {parallelEmpfohlen && value !== 'parallel' && (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
             <p className="text-xs text-amber-800">{anlagentypEmpfehlung}</p>
           </div>

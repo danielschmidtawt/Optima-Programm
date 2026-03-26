@@ -1,4 +1,5 @@
-import type { Ergebnisse } from '../calc'
+import { useState, useEffect } from 'react'
+import type { Ergebnisse, Anlage } from '../calc'
 import { kategorieLabel } from '../calc'
 
 interface Props {
@@ -39,7 +40,98 @@ function AmpelDot({ farbe }: { farbe: 'gruen' | 'gelb' | 'rot' }) {
   )
 }
 
+function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck }: {
+  anlage: Anlage; istEmpfehlung: boolean; onZurueck?: () => void
+}) {
+  return (
+    <div className="rounded-xl bg-brand-50 border border-brand-200 p-4 mb-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-lg font-bold text-brand-800">{anlage.name}</p>
+          <p className="text-sm text-brand-600 mt-0.5">Art.Nr. {anlage.artNr} · {kategorieLabel(anlage.kategorie)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {!istEmpfehlung && onZurueck && (
+            <button
+              onClick={onZurueck}
+              className="rounded-full border border-brand-300 bg-white px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition"
+            >
+              Zurück zur Empfehlung
+            </button>
+          )}
+          {istEmpfehlung && (
+            <span className="rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white whitespace-nowrap">
+              Empfohlen
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <div>
+          <p className="text-xs text-brand-500">Harzvolumen</p>
+          <p className="text-sm font-semibold text-brand-800">
+            {anlage.harz} Liter
+            {anlage.harzProTank != null && (
+              <span className="font-normal text-brand-500"> ({anlage.harzProTank} l/Tank)</span>
+            )}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-brand-500">Tank / Durchmesser</p>
+          <p className="text-sm font-semibold text-brand-800">
+            {anlage.tank} / {anlage.zoll}"
+            {anlage.querschnittGesamt != null && (
+              <span className="font-normal text-brand-500"> (2×{anlage.querschnitt} dm²)</span>
+            )}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-brand-500">Durchfluss Normal</p>
+          <p className="text-sm font-semibold text-brand-800">
+            {anlage.durchflussNormal} l/min
+            {anlage.ventilBegrenztNormal && (
+              <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
+            )}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-brand-500">Durchfluss Spitze</p>
+          <p className="text-sm font-semibold text-brand-800">
+            {anlage.durchflussSpitze} l/min
+            {anlage.ventilBegrenztSpitze && (
+              <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
+            )}
+          </p>
+        </div>
+      </div>
+      {(anlage.ventilBegrenztNormal || anlage.ventilBegrenztSpitze) && (
+        <p className="mt-2 text-xs text-amber-600">
+          Durchfluss begrenzt durch 2" Verteiler (DN50, max. {anlage.maxAnschlussFluss} l/min bei 2 m/s)
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function ResultsPanel({ ergebnisse: e }: Props) {
+  const [override, setOverride] = useState<Anlage | null>(null)
+
+  // Reset bei neuer Berechnung
+  useEffect(() => setOverride(null), [e.empfohleneAnlage])
+
+  const angezeigte = override ?? e.empfohleneAnlage
+  const istEmpfehlung = angezeigte === e.empfohleneAnlage
+
+  // Alle verfügbaren Anlagen ausser der aktuell angezeigten
+  const andereAnlagen = e.empfohleneAnlage
+    ? [e.empfohleneAnlage, ...e.alternativeAnlagen].filter(a => a !== angezeigte)
+    : []
+
+  // Harzmenge aus gewählter Anlage (oder Fallback auf Berechnung)
+  const harzGesamt = angezeigte ? angezeigte.harz : e.harzmengeGesamt
+  const harzProEinheit = angezeigte?.harzProTank ?? (angezeigte ? angezeigte.harz : e.harzmengeProFlasche)
+  const anzFlaschen = angezeigte?.harzProTank != null ? 2 : e.anzahlFlaschen
+
   return (
     <section className="mb-6 space-y-6">
       {/* ── Druck-Zusammenfassung (nur im Print sichtbar) ── */}
@@ -48,7 +140,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
           <tbody>
             <tr>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Harzmenge gesamt</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.harzmengeGesamt)} Liter {e.anzahlFlaschen === 2 ? `(${e.anzahlFlaschen}× ${fmt(e.harzmengeProFlasche)} l)` : ''}</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{harzGesamt} Liter {anzFlaschen === 2 ? `(${anzFlaschen}× ${harzProEinheit} l)` : ''}</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Regenerationsintervall</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.regenIntervallProFlasche)} Tage</td>
             </tr>
@@ -71,74 +163,36 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
       {/* Anlagenvorschlag aus Produktkatalog – ganz oben, prominent */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6 border-2 border-brand-300">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagenvorschlag</h2>
-        {e.empfohleneAnlage ? (
+        {angezeigte ? (
           <div>
-            <div className="rounded-xl bg-brand-50 border border-brand-200 p-4 mb-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-lg font-bold text-brand-800">{e.empfohleneAnlage.name}</p>
-                  <p className="text-sm text-brand-600 mt-0.5">Art.Nr. {e.empfohleneAnlage.artNr} · {kategorieLabel(e.empfohleneAnlage.kategorie)}</p>
-                </div>
-                <span className="rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white whitespace-nowrap">
-                  Empfohlen
-                </span>
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                <div>
-                  <p className="text-xs text-brand-500">Harzvolumen</p>
-                  <p className="text-sm font-semibold text-brand-800">
-                    {e.empfohleneAnlage.harz} Liter
-                    {e.empfohleneAnlage.harzProTank != null && (
-                      <span className="font-normal text-brand-500"> ({e.empfohleneAnlage.harzProTank} l/Tank)</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-brand-500">Tank / Durchmesser</p>
-                  <p className="text-sm font-semibold text-brand-800">
-                    {e.empfohleneAnlage.tank} / {e.empfohleneAnlage.zoll}"
-                    {e.empfohleneAnlage.querschnittGesamt != null && (
-                      <span className="font-normal text-brand-500"> (2×{e.empfohleneAnlage.querschnitt} dm²)</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-brand-500">Durchfluss Normal</p>
-                  <p className="text-sm font-semibold text-brand-800">
-                    {e.empfohleneAnlage.durchflussNormal} l/min
-                    {e.empfohleneAnlage.ventilBegrenztNormal && (
-                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-brand-500">Durchfluss Spitze</p>
-                  <p className="text-sm font-semibold text-brand-800">
-                    {e.empfohleneAnlage.durchflussSpitze} l/min
-                    {e.empfohleneAnlage.ventilBegrenztSpitze && (
-                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              {(e.empfohleneAnlage.ventilBegrenztNormal || e.empfohleneAnlage.ventilBegrenztSpitze) && (
-                <p className="mt-2 text-xs text-amber-600">
-                  Durchfluss begrenzt durch 2" Verteiler (DN50, max. {e.empfohleneAnlage.maxAnschlussFluss} l/min bei 2 m/s)
-                </p>
-              )}
-            </div>
+            <AnlageDetailCard
+              anlage={angezeigte}
+              istEmpfehlung={istEmpfehlung}
+              onZurueck={() => setOverride(null)}
+            />
 
-            {e.alternativeAnlagen.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-slate-500 mb-2">Alternativen</p>
+            {andereAnlagen.length > 0 && (
+              <div className="no-print">
+                <p className="text-xs font-medium text-slate-500 mb-2">Alternativen — zum Auswählen klicken</p>
                 <div className="space-y-2">
-                  {e.alternativeAnlagen.map(a => (
-                    <div key={a.artNr} className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  {andereAnlagen.map(a => (
+                    <button
+                      key={a.artNr}
+                      onClick={() => setOverride(a === e.empfohleneAnlage ? null : a)}
+                      className={`w-full rounded-lg border px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-left transition-all cursor-pointer ${
+                        a === e.empfohleneAnlage
+                          ? 'border-brand-200 bg-brand-50/50 hover:bg-brand-50'
+                          : 'border-slate-100 bg-slate-50 hover:border-brand-300 hover:bg-brand-50/30'
+                      }`}
+                    >
                       <span className="font-medium text-slate-700">{a.name}</span>
                       <span className="text-slate-400">Art.Nr. {a.artNr}</span>
                       <span className="text-slate-500">{a.harz} l</span>
                       <span className="text-slate-500">{a.durchflussSpitze} l/min Spitze</span>
-                    </div>
+                      {a === e.empfohleneAnlage && (
+                        <span className="ml-auto rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-medium text-brand-600">Empfehlung</span>
+                      )}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -156,13 +210,13 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
         )}
       </div>
 
-      {/* Harzmenge – Prominent */}
+      {/* Harzmenge – aus gewählter Anlage */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Harzmenge</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatCard label="Gesamte Harzmenge" value={fmt(e.harzmengeGesamt)} unit="Liter" large accent />
-          <StatCard label={e.anzahlFlaschen === 2 ? 'Pro Flasche / Tank' : 'Pro Flasche'} value={fmt(e.harzmengeProFlasche)} unit="Liter" large />
-          <StatCard label={e.anzahlFlaschen === 2 ? 'Anzahl Flaschen / Tanks' : 'Anzahl Flaschen'} value={String(e.anzahlFlaschen)} large />
+          <StatCard label="Gesamte Harzmenge" value={String(harzGesamt)} unit="Liter" large accent />
+          <StatCard label={anzFlaschen === 2 ? 'Pro Flasche / Tank' : 'Pro Flasche'} value={String(harzProEinheit)} unit="Liter" large />
+          <StatCard label={anzFlaschen === 2 ? 'Anzahl Flaschen / Tanks' : 'Anzahl Flaschen'} value={String(anzFlaschen)} large />
         </div>
       </div>
 

@@ -301,7 +301,7 @@ export function berechne(e: Eingaben): Ergebnisse {
 
   // ── Anlagentyp-Empfehlung ──────────────────────────────────────────────────
   const anlagentypEmpfehlung = e.personen > DUPLEX_EMPFEHLUNG_PERSONEN
-    ? 'Duplex-Anlage empfohlen: Ab ' + DUPLEX_EMPFEHLUNG_PERSONEN + ' Personen ist eine unterbrechungsfreie Weichwasserversorgung sinnvoll. Während der Regeneration einer Flasche übernimmt die zweite Flasche – 24/7 Weichwasser garantiert.'
+    ? 'Parallel-Anlage empfohlen: Ab ' + DUPLEX_EMPFEHLUNG_PERSONEN + ' Personen empfehlen wir eine Parallel-Anlage – doppelter Durchfluss durch 2 gleichzeitig durchströmte Tanks bei halbem Druckverlust.'
     : 'Simplex-Anlage ausreichend: Regeneration kann in Schwachlastzeiten (z.B. nachts) programmiert werden.'
 
   // ── Empfehlungstext ────────────────────────────────────────────────────────
