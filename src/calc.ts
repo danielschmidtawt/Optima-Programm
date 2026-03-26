@@ -311,20 +311,6 @@ export function berechne(e: Eingaben): Ergebnisse {
       ? 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
       : 'Parallel-Anlage (2 Tanks, gleichzeitig durchströmt)'
 
-  const empfehlung = [
-    `Empfohlene Konfiguration: ${typText}.`,
-    `Gesamtes Harzvolumen: ${harzmengeGesamt.toFixed(1)} Liter` +
-      (e.anlagentyp === 'parallel' ? ` (2 Tanks × ${harzmengeProFlasche.toFixed(1)} Liter)` :
-       anzahlFlaschen === 2 ? ` (2 × ${harzmengeProFlasche.toFixed(1)} Liter)` : '') + '.',
-    `Regenerationsintervall: ca. ${Math.min(regenIntervallProFlasche, 999).toFixed(1)} Tage pro Flasche.`,
-    `Salzvorrat: ca. ${salzverbrauchMonat.toFixed(1)} kg/Monat (${salzverbrauchJahr.toFixed(0)} kg/Jahr).`,
-    regenAmpel === 'rot'
-      ? '⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.'
-      : regenAmpel === 'gelb'
-        ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
-        : 'Regenerationsintervall im optimalen Bereich.',
-  ].join('\n')
-
   // ── Anlagenvorschlag aus Produktkatalog ──────────────────────────────────
   const volumenstromEnthaerterLMin = volumenstromEnthaerter * 60 // l/s → l/min
   // Parallel: Katalog-Harz = Gesamtharz (beide Tanks), daher mit harzmengeGesamt matchen
@@ -332,6 +318,31 @@ export function berechne(e: Eingaben): Ergebnisse {
   const harzFuerMatching = e.anlagentyp === 'parallel' ? harzmengeGesamt : harzmengeProFlasche
   const { empfohlen: empfohleneAnlage, alternativen: alternativeAnlagen } =
     findePassendeAnlage(e.anlagentyp, harzFuerMatching, volumenstromEnthaerterLMin)
+
+  // ── Empfehlungstext (nutzt Anlagen-Harzwerte wenn verfügbar) ─────────────
+  const anlageHarz = empfohleneAnlage ? empfohleneAnlage.harz : harzmengeGesamt
+  const anlageHarzProTank = empfohleneAnlage?.harzProTank
+  const anlageName = empfohleneAnlage ? empfohleneAnlage.name : null
+
+  let harzText = `Gesamtes Harzvolumen: ${anlageHarz} Liter`
+  if (anlageHarzProTank != null) {
+    harzText += ` (2 Tanks × ${anlageHarzProTank} Liter)`
+  } else if (anzahlFlaschen === 2) {
+    harzText += ` (2 × ${(anlageHarz / 2).toFixed(1)} Liter)`
+  }
+  harzText += '.'
+
+  const empfehlung = [
+    `Empfohlene Konfiguration: ${typText}${anlageName ? ` – ${anlageName}` : ''}.`,
+    harzText,
+    `Regenerationsintervall: ca. ${Math.min(regenIntervallProFlasche, 999).toFixed(1)} Tage.`,
+    `Salzvorrat: ca. ${salzverbrauchMonat.toFixed(1)} kg/Monat (${salzverbrauchJahr.toFixed(0)} kg/Jahr).`,
+    regenAmpel === 'rot'
+      ? '⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.'
+      : regenAmpel === 'gelb'
+        ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
+        : 'Regenerationsintervall im optimalen Bereich.',
+  ].join('\n')
 
   return {
     spitzenvolumenstrom,
