@@ -107,7 +107,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
                   <p className="text-sm font-semibold text-brand-800">
                     {e.empfohleneAnlage.durchflussNormal} l/min
                     {e.empfohleneAnlage.ventilBegrenztNormal && (
-                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">1,5" begrenzt</span>
+                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
                     )}
                   </p>
                 </div>
@@ -116,14 +116,14 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
                   <p className="text-sm font-semibold text-brand-800">
                     {e.empfohleneAnlage.durchflussSpitze} l/min
                     {e.empfohleneAnlage.ventilBegrenztSpitze && (
-                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">1,5" begrenzt</span>
+                      <span className="ml-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">2" begrenzt</span>
                     )}
                   </p>
                 </div>
               </div>
               {(e.empfohleneAnlage.ventilBegrenztNormal || e.empfohleneAnlage.ventilBegrenztSpitze) && (
                 <p className="mt-2 text-xs text-amber-600">
-                  Durchfluss begrenzt durch 1,5" Anschluss (DN40, max. {e.empfohleneAnlage.maxAnschlussFluss} l/min bei 2 m/s)
+                  Durchfluss begrenzt durch 2" Verteiler (DN50, max. {e.empfohleneAnlage.maxAnschlussFluss} l/min bei 2 m/s)
                 </p>
               )}
             </div>
