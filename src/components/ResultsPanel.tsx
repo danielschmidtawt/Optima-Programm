@@ -298,12 +298,41 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
         </div>
       </div>
 
-      {/* Anlagenempfehlung */}
+      {/* Anlagenempfehlung – dynamisch basierend auf ausgewählter Anlage */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-3 text-lg font-semibold text-slate-800">Anlagenempfehlung</h2>
         <div className="rounded-xl bg-brand-50 border border-brand-200 p-4">
           <pre className="whitespace-pre-wrap text-sm leading-relaxed text-brand-800 font-sans">
-            {e.empfehlung}
+            {(() => {
+              const a = angezeigte
+              const typText = e.anzahlFlaschen === 1
+                ? 'Simplex-Anlage (1 Harzflasche)'
+                : a?.betriebsart === 'duplex'
+                  ? 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
+                  : 'Parallel-Anlage (2 Tanks, gleichzeitig durchströmt)'
+              const name = a ? a.name : null
+              const harz = a ? a.harz : e.harzmengeGesamt
+              const proTank = a?.harzProTank
+              let harzInfo = `${harz} Liter`
+              if (proTank != null) harzInfo += ` (2 Tanks × ${proTank} Liter)`
+              else if (e.anzahlFlaschen === 2) harzInfo += ` (2 × ${(harz / 2).toFixed(1)} Liter)`
+
+              const lines = [
+                `Empfohlene Konfiguration: ${typText}${name ? ` – ${name}` : ''}.`,
+                `Gesamtes Harzvolumen: ${harzInfo}.`,
+                `Regenerationsintervall: ca. ${fmt(e.regenIntervallProFlasche)} Tage.`,
+                `Salzvorrat: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
+                e.regenAmpel === 'rot'
+                  ? '⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.'
+                  : e.regenAmpel === 'gelb'
+                    ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
+                    : 'Regenerationsintervall im optimalen Bereich.',
+              ]
+              if (!istEmpfehlung && a) {
+                lines.push(`\nHinweis: Manuell ausgewählte Anlage (nicht die berechnete Empfehlung).`)
+              }
+              return lines.join('\n')
+            })()}
           </pre>
         </div>
       </div>
