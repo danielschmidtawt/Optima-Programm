@@ -1,3 +1,5 @@
+const APP_VERSION = '1.4.0'
+
 export function Header() {
   return (
     <header className="no-print sticky top-0 z-50 border-b border-white/60 bg-white/60 backdrop-blur-xl">
@@ -14,7 +16,7 @@ export function Header() {
             <p className="text-[11px] text-slate-400 leading-tight">Konfiguration V1</p>
           </div>
         </div>
-        <span className="text-xs font-medium text-slate-400">Enthärtungsanlagen</span>
+        <span className="text-xs font-medium text-slate-400">v{APP_VERSION}</span>
       </div>
     </header>
   )
