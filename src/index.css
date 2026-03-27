@@ -14,11 +14,15 @@
 
 html {
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
 }
 
 body {
   font-family: var(--font-sans);
   margin: 0;
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
