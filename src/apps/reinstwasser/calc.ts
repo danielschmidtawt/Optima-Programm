@@ -1,9 +1,12 @@
 // ── Reinstwasser – Berechnungsmodul ──────────────────────────────────────────
 
+// Referenz-Leitwert, auf den alle Kapazitätsangaben bezogen sind
+export const REFERENZ_LEITWERT = 420 // µS/cm
+
 // ── Harz-Kapazität ──────────────────────────────────────────────────────────
 
 export interface HarzDaten {
-  kapazitaet: number
+  kapazitaet: number // Liter Wasser pro Liter Harz bei 420 µS/cm
 }
 
 export const HARZ_GROESSEN: number[] = [0.75, 1.5, 3, 7, 14, 23, 62]
@@ -45,8 +48,9 @@ export function berechneHarz(e: HarzEingaben): HarzErgebnisse {
     ? ((e.mengeFrisch * e.leitwertFrisch) + (e.mengeBestand * e.leitwertBestand)) / totalMenge
     : e.leitwertFrisch
 
+  // Kapazität skaliert mit Leitwert: bei höherem LF weniger Wasser pro Liter Harz
   const bedarfLiterGesamt = totalMenge > 0
-    ? totalMenge / (harz.kapazitaet * (420 / Math.max(mischLeitwert, 1)))
+    ? totalMenge / (harz.kapazitaet * (REFERENZ_LEITWERT / Math.max(mischLeitwert, 1)))
     : 0
 
   const bedarfEinheiten = totalMenge > 0
@@ -58,9 +62,16 @@ export function berechneHarz(e: HarzEingaben): HarzErgebnisse {
 
 // ── Nachspeisung ────────────────────────────────────────────────────────────
 
+// Anlageninhalt-Richtwerte (l pro kW Heizleistung)
+export const INHALT_PRO_KW_RADIATOR = 13
+export const INHALT_PRO_KW_FBH = 25
+
+// Jährliche Nachspeisung als Anteil des Anlageninhalts (Erfahrungswert)
+export const NACHSPEISUNG_ANTEIL_PA = 0.03
+
 export interface Geraet {
   name: string
-  maxLiter: number
+  maxLiter: number // Kapazität in Liter Wasser bei 420 µS/cm
 }
 
 export const GERAETE: Geraet[] = [
@@ -75,28 +86,42 @@ export interface NachspeisungEingaben {
   pufferLiter: number
   fbhVorhanden: boolean
   inhaltManuell: number
+  leitwertNachspeisung: number // µS/cm Rohwasser der Nachspeisung (Referenz 420)
 }
 
 export interface NachspeisungErgebnisse {
   anlageninhalt: number
   nachspeisungPA: number
   empfohlenerGeraet: Geraet
+  effektiveKapazitaet: number // l/Jahr des empfohlenen Geräts beim eingestellten Leitwert
+  reichweiteJahre: number     // Patronen-Reichweite in Jahren
+  ueberKapazitaet: boolean    // Nachspeisung übersteigt selbst das grösste Gerät
 }
 
 export function berechneNachspeisung(e: NachspeisungEingaben): NachspeisungErgebnisse {
   const anlageninhalt = e.inhaltManuell > 0
     ? e.inhaltManuell
-    : (e.leistungKW * (e.fbhVorhanden ? 25 : 13)) + e.pufferLiter
+    : (e.leistungKW * (e.fbhVorhanden ? INHALT_PRO_KW_FBH : INHALT_PRO_KW_RADIATOR)) + e.pufferLiter
 
-  const nachspeisungPA = anlageninhalt * 0.03
+  const nachspeisungPA = anlageninhalt * NACHSPEISUNG_ANTEIL_PA
+
+  // Gerätekapazität ist auf 420 µS/cm bezogen – auf realen Leitwert umrechnen.
+  // Höherer Leitwert = mehr Ionenfracht = weniger nutzbare Liter pro Patrone.
+  const leitwert = e.leitwertNachspeisung > 0 ? e.leitwertNachspeisung : REFERENZ_LEITWERT
+  const kapazitaetsFaktor = REFERENZ_LEITWERT / leitwert
 
   let empfohlenerGeraet = GERAETE[GERAETE.length - 1]
+  let ueberKapazitaet = nachspeisungPA > 0
   for (const g of GERAETE) {
-    if (nachspeisungPA <= g.maxLiter) {
+    if (nachspeisungPA <= g.maxLiter * kapazitaetsFaktor) {
       empfohlenerGeraet = g
+      ueberKapazitaet = false
       break
     }
   }
 
-  return { anlageninhalt, nachspeisungPA, empfohlenerGeraet }
+  const effektiveKapazitaet = empfohlenerGeraet.maxLiter * kapazitaetsFaktor
+  const reichweiteJahre = nachspeisungPA > 0 ? effektiveKapazitaet / nachspeisungPA : Infinity
+
+  return { anlageninhalt, nachspeisungPA, empfohlenerGeraet, effektiveKapazitaet, reichweiteJahre, ueberKapazitaet }
 }
