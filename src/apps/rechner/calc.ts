@@ -16,6 +16,8 @@ export interface Eingaben {
   bwAuto: boolean
   anlagentyp: AnlagenTyp
   anschluss: AnschlussGroesse
+  v1Auto: boolean           // true = V1 aus BW (SVGW W3), false = manuell
+  v1Manuell: number         // l/s – nur bei v1Auto = false
   // Erweiterte Einstellungen
   verbrauchProPerson: number  // l/Tag
   regenIntervallTage: number  // Tage
@@ -185,7 +187,9 @@ function findePassendeAnlage(
 
 export interface Ergebnisse {
   // Volumenstrom & Gleichzeitigkeit
-  spitzenvolumenstrom: number    // l/s – V1 aus BW
+  spitzenvolumenstrom: number    // l/s – V1 (effektiv verwendet)
+  v1AutoWert: number             // l/s – V1 aus BW (immer berechnet)
+  v1Quelle: 'auto' | 'manuell'
   volumenstromEnthaerter: number // l/s – VE
   druckverlust: number           // bar – ΔpE
   // Harzmenge
@@ -254,8 +258,11 @@ export function berechne(e: Eingaben): Ergebnisse {
   // Durch Enthärter fliessende Wassermenge pro Tag
   const durchEnthaerter = tagesverbrauch * weichwasserAnteil
 
-  // Volumenstrom (SVGW W3)
-  const spitzenvolumenstrom = spitzenvolumenstromW3(e.bwLu)
+  // Volumenstrom (SVGW W3) – immer berechnen als Referenzwert
+  const v1AutoWert = spitzenvolumenstromW3(e.bwLu)
+  // Effektiver V1: Auto (aus BW) oder manuell (lt. Schema)
+  const spitzenvolumenstrom = e.v1Auto ? v1AutoWert : (e.v1Manuell > 0 ? e.v1Manuell : v1AutoWert)
+  const v1Quelle: 'auto' | 'manuell' = e.v1Auto ? 'auto' : 'manuell'
   // VE: Anteil des Volumenstroms, der durch Enthärter fliesst
   const volumenstromEnthaerter = spitzenvolumenstrom * weichwasserAnteil
 
@@ -410,6 +417,8 @@ export function berechne(e: Eingaben): Ergebnisse {
 
   return {
     spitzenvolumenstrom,
+    v1AutoWert,
+    v1Quelle,
     volumenstromEnthaerter,
     druckverlust,
     anschluss: e.anschluss,

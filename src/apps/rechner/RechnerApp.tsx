@@ -18,6 +18,8 @@ const DEFAULTS: Eingaben = {
   bwAuto: true,
   anlagentyp: 'duplex',
   anschluss: '',
+  v1Auto: true,
+  v1Manuell: 0,
   verbrauchProPerson: 150,
   regenIntervallTage: 3,
   natriumRohwasser: 5,
@@ -71,6 +73,7 @@ export default function RechnerApp() {
               eingaben.anlagentyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
             } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → {eingaben.resthaerte} °dH
             {eingaben.anschluss && <> · Anschluss: {eingaben.anschluss}</>}
+            {!eingaben.v1Auto && <> · V1: {eingaben.v1Manuell} l/s (manuell)</>}
           </p>
         </div>
         <div className="print-meta">
@@ -91,35 +94,78 @@ export default function RechnerApp() {
           anlagentypEmpfehlung={ergebnisse.anlagentypEmpfehlung}
         />
 
+        {/* V1 Spitzenvolumenstrom – Auto / Manuell */}
         <div className="no-print mb-6">
           <div className="card-glass rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-slate-600 min-w-fit">
-                Belastungswerte (BW)
-              </label>
-              <input
-                type="number"
-                value={eingaben.bwLu || ''}
-                onChange={e => update('bwLu', parseFloat(e.target.value) || 0)}
-                className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition"
-                step="0.1"
-              />
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                eingaben.bwAuto
-                  ? 'bg-brand-100 text-brand-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}>
-                {eingaben.bwAuto ? 'Auto' : 'Manuell'}
-              </span>
-              {!eingaben.bwAuto && (
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Spitzenvolumenstrom V1</h2>
+              <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                 <button
-                  onClick={resetBw}
-                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition"
+                  onClick={() => update('v1Auto', true)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                    eingaben.v1Auto ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
                 >
-                  Zurücksetzen
+                  Automatisch
                 </button>
-              )}
+                <button
+                  onClick={() => {
+                    if (eingaben.v1Auto) {
+                      update('v1Manuell', parseFloat(ergebnisse.v1AutoWert.toFixed(4)))
+                    }
+                    update('v1Auto', false)
+                  }}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                    !eingaben.v1Auto ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Manuell
+                </button>
+              </div>
             </div>
+            {eingaben.v1Auto ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-slate-600">BW</label>
+                  <input
+                    type="number"
+                    value={eingaben.bwLu || ''}
+                    onChange={e => update('bwLu', parseFloat(e.target.value) || 0)}
+                    className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition"
+                    step="0.1"
+                  />
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    eingaben.bwAuto ? 'bg-brand-100 text-brand-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {eingaben.bwAuto ? 'Auto' : 'Manuell'}
+                  </span>
+                  {!eingaben.bwAuto && (
+                    <button onClick={resetBw} className="rounded-lg px-2.5 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition">
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="text-sm text-slate-400">→</span>
+                <span className="text-sm font-semibold text-brand-700">V1 = {ergebnisse.v1AutoWert.toFixed(3)} l/s</span>
+                <span className="text-xs text-slate-400">(SVGW W3)</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-slate-600">V1</label>
+                <input
+                  type="number"
+                  value={eingaben.v1Manuell || ''}
+                  onChange={e => update('v1Manuell', parseFloat(e.target.value) || 0)}
+                  className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition"
+                  step="0.001"
+                />
+                <span className="text-xs text-slate-500">l/s</span>
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                  lt. Schema
+                </span>
+                <span className="text-xs text-slate-400">(Auto wäre {ergebnisse.v1AutoWert.toFixed(3)} l/s)</span>
+              </div>
+            )}
           </div>
         </div>
 

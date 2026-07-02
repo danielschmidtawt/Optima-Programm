@@ -170,8 +170,8 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.regenIntervallProFlasche)} Tage</td>
             </tr>
             <tr>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom V1</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s ({e.v1Quelle === 'manuell' ? 'manuell, lt. Schema' : 'aus Personen, SVGW W3'})</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Salzverbrauch/Jahr</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.salzverbrauchJahr, 0)} kg ({fmt(e.betriebskostenJahr, 0)} CHF)</td>
             </tr>
@@ -311,7 +311,11 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Volumenstrom & Gleichzeitigkeit</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatCard label="Spitzenvolumenstrom V1 (SVGW W3)" value={fmt(e.spitzenvolumenstrom, 3)} unit="l/s" />
+          <StatCard
+            label={e.v1Quelle === 'manuell' ? 'Spitzenvolumenstrom V1 (manuell, lt. Schema)' : 'Spitzenvolumenstrom V1 (aus Personen, SVGW W3)'}
+            value={fmt(e.spitzenvolumenstrom, 3)}
+            unit="l/s"
+          />
           <StatCard label="Volumenstrom durch Enthärter VE" value={fmt(e.volumenstromEnthaerter, 3)} unit="l/s" />
           <StatCard label="Druckverlust ΔpE" value={fmt(e.druckverlust, 2)} unit="bar" />
         </div>
@@ -404,8 +408,10 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               if (proTank != null) harzInfo += ` (2 Tanks × ${proTank} Liter)`
               else if (e.anzahlFlaschen === 2) harzInfo += ` (2 × ${(harz / 2).toFixed(1)} Liter)`
 
+              const v1Label = e.v1Quelle === 'manuell' ? 'manuell, lt. Schema' : 'aus Personen, SVGW W3'
               const lines = [
                 `Empfohlene Konfiguration: ${typText}${name ? ` – ${name}` : ''}.`,
+                `Spitzenvolumenstrom V1: ${fmt(e.spitzenvolumenstrom, 3)} l/s (${v1Label}).`,
                 `Gesamtes Harzvolumen: ${harzInfo}.`,
                 `Regenerationsintervall: ca. ${fmt(e.regenIntervallProFlasche)} Tage.`,
                 `Salzvorrat: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
