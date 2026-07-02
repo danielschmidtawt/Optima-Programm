@@ -22,6 +22,7 @@ const DEFAULTS: Eingaben = {
   v1Manuell: 0,
   verbrauchProPerson: 150,
   regenIntervallTage: 3,
+  reserveTage: 1,
   natriumRohwasser: 5,
   salzkosten: 0.60,
   volumenstromApparat: 0.70,
@@ -98,7 +99,7 @@ export default function RechnerApp() {
         <div className="no-print mb-6">
           <div className="card-glass rounded-2xl p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-800">Spitzenvolumenstrom V1</h2>
+              <h2 className="section-title text-sm font-semibold text-slate-800">Spitzenvolumenstrom V1</h2>
               <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
                 <button
                   onClick={() => update('v1Auto', true)}

@@ -31,7 +31,7 @@ export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfeh
   return (
     <section className="no-print mb-6">
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagentyp</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Anlagentyp</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           {typen.map(t => (
             <button
@@ -39,8 +39,8 @@ export function AnlagenTypSelector({ value, onChange, personen, anlagentypEmpfeh
               onClick={() => onChange(t.key)}
               className={`group relative rounded-xl border-2 p-4 text-left transition-all ${
                 value === t.key
-                  ? 'border-brand-400 bg-brand-50/60 shadow-md shadow-brand-100'
-                  : 'border-slate-200 bg-white hover:border-brand-200 hover:shadow-sm'
+                  ? 'border-brand-400 bg-gradient-to-br from-brand-50 to-sky-50/50 shadow-md shadow-brand-100'
+                  : 'border-slate-200/80 bg-white/70 hover:border-brand-200 hover:shadow-sm hover:-translate-y-px'
               }`}
             >
               <div className="flex items-center gap-2">

@@ -28,7 +28,7 @@ export function ProjectInputs({ eingaben, update }: Props) {
   return (
     <section className="mb-6 mt-6">
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Projektdaten</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Projektdaten</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Projektname / Objektbezeichnung">
             <input

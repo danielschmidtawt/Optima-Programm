@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Ergebnisse, Anlage } from '../calc'
-import { kategorieLabel, kopfgroesse, pruefeFlussProKopf } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, intervallFuerAnlage, ampelFuerIntervall } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
@@ -16,9 +15,9 @@ function StatCard({ label, value, unit, large, accent }: {
   label: string; value: string; unit?: string; large?: boolean; accent?: boolean
 }) {
   return (
-    <div className={`rounded-xl p-4 ${accent ? 'bg-brand-50 border border-brand-200' : 'bg-slate-50 border border-slate-100'}`}>
+    <div className={`rounded-xl p-4 transition-colors ${accent ? 'bg-gradient-to-br from-brand-50 to-sky-50/60 border border-brand-200/80' : 'bg-white/60 border border-slate-200/70'}`}>
       <p className="text-xs font-medium text-slate-500 mb-1">{label}</p>
-      <p className={`font-bold ${large ? 'text-2xl sm:text-3xl' : 'text-lg'} ${accent ? 'text-brand-700' : 'text-slate-900'}`}>
+      <p className={`font-bold tracking-tight ${large ? 'text-2xl sm:text-3xl' : 'text-lg'} ${accent ? 'text-brand-700' : 'text-slate-900'}`}>
         {value}
         {unit && <span className="ml-1 text-sm font-normal text-slate-400">{unit}</span>}
       </p>
@@ -58,7 +57,7 @@ function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck, anschluss }: {
 }) {
   const anschlussHinweis = anschlussText(anschluss, anlage)
   return (
-    <div className="rounded-xl bg-brand-50 border border-brand-200 p-4 mb-3">
+    <div className="rounded-xl bg-gradient-to-br from-brand-50 via-sky-50/70 to-white border border-brand-200/80 p-4 mb-3 shadow-sm shadow-brand-100/50">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-lg font-bold text-brand-800">{anlage.name}</p>
@@ -157,6 +156,12 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
   const harzProEinheit = angezeigte?.harzProTank ?? (angezeigte ? angezeigte.harz : e.harzmengeProFlasche)
   const anzFlaschen = angezeigte?.harzProTank != null ? 2 : e.anzahlFlaschen
 
+  // Regenerationsintervall der GEWÄHLTEN Anlage (nicht des theoretischen Minimums)
+  const intervallAngezeigt = angezeigte
+    ? Math.min(intervallFuerAnlage(angezeigte, e.tagesbedarfKapazitaet), 999)
+    : e.regenIntervallProFlasche
+  const ampelAngezeigt = ampelFuerIntervall(intervallAngezeigt)
+
   return (
     <section className="mb-6 space-y-6">
       {/* ── Druck-Zusammenfassung (nur im Print sichtbar) ── */}
@@ -167,7 +172,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Harzmenge gesamt</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{harzGesamt} Liter {anzFlaschen === 2 ? `(${anzFlaschen}× ${harzProEinheit} l)` : ''}</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Regenerationsintervall</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(e.regenIntervallProFlasche)} Tage</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(intervallAngezeigt)} Tage</td>
             </tr>
             <tr>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom V1</td>
@@ -190,7 +195,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
             {flussCheck && (
               <tr>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf</td>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (max. {flussCheck.maxProKopfLMin.toFixed(1)} l/min) {flussCheck.warnung ? '⚠' : '✓'}</td>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenn {flussCheck.nennProKopfLMin.toFixed(1)} / Max {flussCheck.maxProKopfLMin.toFixed(1)}) {flussCheck.status === 'ueberlast' ? '⚠' : flussCheck.status === 'spitze' ? '△ Spitzenbereich' : '✓'}</td>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss-Check</td>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{e.plausiCheck1 ? '⚠ V1 > Anschluss' : (e.anschluss ? '✓ OK' : '–')}</td>
               </tr>
@@ -200,8 +205,8 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
       </div>
 
       {/* Anlagenvorschlag aus Produktkatalog – ganz oben, prominent */}
-      <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6 border-2 border-brand-300">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Anlagenvorschlag</h2>
+      <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6 border-2 border-brand-300 ring-4 ring-brand-100/40">
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Anlagenvorschlag</h2>
         {angezeigte ? (
           <div>
             <AnlageDetailCard
@@ -219,10 +224,10 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
                     <button
                       key={a.artNr}
                       onClick={() => setOverride(a === e.empfohleneAnlage ? null : a)}
-                      className={`w-full rounded-lg border px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-left transition-all cursor-pointer ${
+                      className={`w-full rounded-xl border px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-left transition-all cursor-pointer hover:-translate-y-px hover:shadow-sm ${
                         a === e.empfohleneAnlage
                           ? 'border-brand-200 bg-brand-50/50 hover:bg-brand-50'
-                          : 'border-slate-100 bg-slate-50 hover:border-brand-300 hover:bg-brand-50/30'
+                          : 'border-slate-200/70 bg-white/60 hover:border-brand-300 hover:bg-brand-50/30'
                       }`}
                     >
                       <span className="font-medium text-slate-700">{a.name}</span>
@@ -268,27 +273,38 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
           {/* Durchfluss pro Kopf – immer anzeigen wenn Anlage gewählt */}
           {angezeigte && flussCheck && (
             <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-              <h2 className="mb-4 text-lg font-semibold text-slate-800">Durchfluss pro Kopf</h2>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Durchfluss pro Kopf</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                   label="VE pro Kopf"
                   value={flussCheck.flussProjKopfLMin.toFixed(1)}
                   unit="l/min"
-                  accent={!flussCheck.warnung}
+                  accent={flussCheck.status === 'ok'}
                 />
                 <StatCard
-                  label="Max. Ventil/Kopf"
+                  label="Nenndurchfluss/Kopf (Dauer)"
+                  value={flussCheck.nennProKopfLMin.toFixed(1)}
+                  unit="l/min"
+                />
+                <StatCard
+                  label="Max. Ventil/Kopf (Spitze)"
                   value={flussCheck.maxProKopfLMin.toFixed(1)}
                   unit="l/min"
                 />
                 <div className="flex items-center rounded-xl p-4 border" style={{
-                  backgroundColor: flussCheck.warnung ? '#fef2f2' : '#f0fdf4',
-                  borderColor: flussCheck.warnung ? '#fecaca' : '#bbf7d0',
+                  backgroundColor: flussCheck.status === 'ueberlast' ? '#fef2f2' : flussCheck.status === 'spitze' ? '#fffbeb' : '#f0fdf4',
+                  borderColor: flussCheck.status === 'ueberlast' ? '#fecaca' : flussCheck.status === 'spitze' ? '#fde68a' : '#bbf7d0',
                 }}>
-                  <p className={`text-sm font-medium ${flussCheck.warnung ? 'text-red-700' : 'text-emerald-700'}`}>
-                    {flussCheck.warnung
-                      ? 'Ventil-Maximum überschritten'
-                      : 'Durchfluss innerhalb Ventil-Kapazität'}
+                  <p className={`text-sm font-medium ${
+                    flussCheck.status === 'ueberlast' ? 'text-red-700'
+                    : flussCheck.status === 'spitze' ? 'text-amber-700'
+                    : 'text-emerald-700'
+                  }`}>
+                    {flussCheck.status === 'ueberlast'
+                      ? '⚠ Ventil-Maximum überschritten'
+                      : flussCheck.status === 'spitze'
+                        ? 'Im Spitzenbereich – kurzzeitig zulässig (über Nenndurchfluss)'
+                        : 'Im Nennbereich – Dauerbetrieb zulässig'}
                   </p>
                 </div>
               </div>
@@ -299,7 +315,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Harzmenge – aus gewählter Anlage */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Harzmenge</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Harzmenge</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard label="Gesamte Harzmenge" value={String(harzGesamt)} unit="Liter" large accent />
           <StatCard label={anzFlaschen === 2 ? 'Pro Flasche / Tank' : 'Pro Flasche'} value={String(harzProEinheit)} unit="Liter" large />
@@ -309,7 +325,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Volumenstrom & Gleichzeitigkeit */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Volumenstrom & Gleichzeitigkeit</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Volumenstrom & Gleichzeitigkeit</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard
             label={e.v1Quelle === 'manuell' ? 'Spitzenvolumenstrom V1 (manuell, lt. Schema)' : 'Spitzenvolumenstrom V1 (aus Personen, SVGW W3)'}
@@ -323,17 +339,17 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Regeneration */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Regeneration</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Regeneration</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatCard
-            label="Regenerationsintervall pro Flasche"
-            value={fmt(e.regenIntervallProFlasche)}
+            label={angezeigte ? 'Regenerationsintervall (gewählte Anlage)' : 'Regenerationsintervall pro Flasche'}
+            value={fmt(intervallAngezeigt)}
             unit="Tage"
           />
-          <div className="flex items-center rounded-xl bg-slate-50 border border-slate-100 p-4">
+          <div className="flex items-center rounded-xl bg-white/60 border border-slate-200/70 p-4">
             <div>
               <p className="text-xs font-medium text-slate-500 mb-1">Bewertung</p>
-              <AmpelDot farbe={e.regenAmpel} />
+              <AmpelDot farbe={ampelAngezeigt} />
             </div>
           </div>
         </div>
@@ -341,7 +357,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Betriebsdaten */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Betriebsdaten</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Betriebsdaten</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Tagesverbrauch gesamt" value={fmt(e.tagesverbrauch, 0)} unit="Liter" />
           <StatCard label="Davon durch Enthärter" value={`${fmt(e.durchEnthaerter, 0)} (${fmt(e.verschneidungProzent, 0)}%)`} unit="Liter" />
@@ -352,7 +368,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Sicherheit / Natrium */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Sicherheit</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Sicherheit</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatCard
             label="Natriumgehalt nach Enthärtung"
@@ -374,7 +390,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Verschneidung */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Verschneidung</h2>
+        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Verschneidung</h2>
         <div className="space-y-2">
           <div className="flex justify-between text-sm font-medium">
             <span className="text-brand-600">Weichwasser {fmt(e.weichwasserAnteil, 0)}%</span>
@@ -391,7 +407,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
       {/* Anlagenempfehlung – dynamisch basierend auf ausgewählter Anlage */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Anlagenempfehlung</h2>
+        <h2 className="section-title mb-3 text-lg font-semibold text-slate-800">Anlagenempfehlung</h2>
         <div className="rounded-xl bg-brand-50 border border-brand-200 p-4">
           <pre className="whitespace-pre-wrap text-sm leading-relaxed text-brand-800 font-sans">
             {(() => {
@@ -413,11 +429,11 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
                 `Empfohlene Konfiguration: ${typText}${name ? ` – ${name}` : ''}.`,
                 `Spitzenvolumenstrom V1: ${fmt(e.spitzenvolumenstrom, 3)} l/s (${v1Label}).`,
                 `Gesamtes Harzvolumen: ${harzInfo}.`,
-                `Regenerationsintervall: ca. ${fmt(e.regenIntervallProFlasche)} Tage.`,
+                `Regenerationsintervall: ca. ${fmt(intervallAngezeigt)} Tage.`,
                 `Salzvorrat: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
-                e.regenAmpel === 'rot'
+                ampelAngezeigt === 'rot'
                   ? '⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.'
-                  : e.regenAmpel === 'gelb'
+                  : ampelAngezeigt === 'gelb'
                     ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
                     : 'Regenerationsintervall im optimalen Bereich.',
               ]

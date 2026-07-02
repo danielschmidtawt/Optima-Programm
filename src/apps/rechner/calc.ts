@@ -21,6 +21,7 @@ export interface Eingaben {
   // Erweiterte Einstellungen
   verbrauchProPerson: number  // l/Tag
   regenIntervallTage: number  // Tage
+  reserveTage: number         // Tage Kapazitätsreserve (Anlage regeneriert vor Erschöpfung)
   natriumRohwasser: number    // mg/l
   salzkosten: number          // CHF/kg
   volumenstromApparat: number // l/s (VA)
@@ -138,7 +139,9 @@ export const ANSCHLUSS_MAX_DURCHFLUSS: Record<string, number> = {
 
 export interface FlussProKopfPruefung {
   flussProjKopfLMin: number
+  nennProKopfLMin: number
   maxProKopfLMin: number
+  status: 'ok' | 'spitze' | 'ueberlast'
   warnung: string | null
 }
 
@@ -152,15 +155,37 @@ export function pruefeFlussProKopf(
     : volumenstromEnthaerter
   const flussProjKopfLMin = veProKopf * 60
 
+  const nennProKopfLMin = anlagentyp === 'parallel'
+    ? anlage.durchflussNormal / 2
+    : anlage.durchflussNormal
   const maxProKopfLMin = anlagentyp === 'parallel'
     ? anlage.durchflussSpitze / 2
     : anlage.durchflussSpitze
 
-  const warnung = flussProjKopfLMin > maxProKopfLMin
+  const status: 'ok' | 'spitze' | 'ueberlast' =
+    flussProjKopfLMin <= nennProKopfLMin ? 'ok'
+    : flussProjKopfLMin <= maxProKopfLMin ? 'spitze'
+    : 'ueberlast'
+
+  const warnung = status === 'ueberlast'
     ? `Achtung: Durchfluss pro Kopf (${flussProjKopfLMin.toFixed(1)} l/min) übersteigt das Ventil-Maximum (${maxProKopfLMin.toFixed(1)} l/min). Grössere Anlage oder Parallelschaltung prüfen.`
     : null
 
-  return { flussProjKopfLMin, maxProKopfLMin, warnung }
+  return { flussProjKopfLMin, nennProKopfLMin, maxProKopfLMin, status, warnung }
+}
+
+// Regenerationsintervall der KONKRETEN Anlage (nicht des theoretischen Minimums).
+// anlage.harz: Simplex = Gesamtharz, Duplex = Harz pro Flasche (eine trägt allein),
+// Parallel = Gesamtharz beider Tanks – in allen Fällen die tragende Kapazität.
+export function intervallFuerAnlage(anlage: Anlage, tagesbedarfKapazitaet: number): number {
+  if (tagesbedarfKapazitaet <= 0) return Infinity
+  return (anlage.harz * HARZ_KAPAZITAET) / tagesbedarfKapazitaet
+}
+
+export function ampelFuerIntervall(tage: number): 'gruen' | 'gelb' | 'rot' {
+  if (tage >= 2) return 'gruen'
+  if (tage >= 1) return 'gelb'
+  return 'rot'
 }
 
 // Anlagenempfehlung: passende Anlage aus Katalog finden
@@ -199,6 +224,7 @@ export interface Ergebnisse {
   // Regeneration
   regenIntervallProFlasche: number // Tage
   regenAmpel: 'gruen' | 'gelb' | 'rot'
+  tagesbedarfKapazitaet: number  // °dH·m³/Tag – für anlagenbezogene Intervallberechnung
   // Betriebsdaten
   tagesverbrauch: number         // Liter
   durchEnthaerter: number        // Liter
@@ -232,7 +258,7 @@ function spitzenvolumenstromW3(bw: number): number {
 
 // Nutzbare Harzkapazität bei Regeneration mit ~150 g NaCl/l Harz
 // Typisch für Hochleistungs-Kationenaustauscher: 4.5–5.5 °dH·m³/l
-const HARZ_KAPAZITAET = 5.0 // °dH·m³/l Harz
+export const HARZ_KAPAZITAET = 5.0 // °dH·m³/l Harz
 
 // Natriumzunahme pro °dH Enthärtung: ca. 8.2 mg/l Na+ pro °dH (Stöchiometrie Ionentausch)
 const NATRIUM_PRO_DH = 8.2
@@ -284,8 +310,11 @@ export function berechne(e: Eingaben): Ergebnisse {
   }
 
   // ── Harzmenge ──────────────────────────────────────────────────────────────
-  // Benötigte Kapazität für einen Regenerationszyklus
-  const durchEnthaerterProZyklus = durchEnthaerter * e.regenIntervallTage // Liter
+  // Benötigte Kapazität für einen Regenerationszyklus INKL. Tagesreserve:
+  // Mengengesteuerte Anlagen regenerieren, bevor das Harz erschöpft ist –
+  // die Restkapazität muss den laufenden Tag noch abdecken (Standard: +1 Tag).
+  const zyklusTage = e.regenIntervallTage + Math.max(0, e.reserveTage)
+  const durchEnthaerterProZyklus = durchEnthaerter * zyklusTage // Liter
   const benoetigteKapazitaet = (durchEnthaerterProZyklus / 1000) * e.rohwasserhaerte // °dH·m³
 
   // Harzvolumen für einen vollen Zyklus
@@ -298,7 +327,7 @@ export function berechne(e: Eingaben): Ergebnisse {
   if (e.anlagentyp === 'simplex') {
     // Simplex: 1 Flasche, muss vollen Zyklus allein abdecken
     anzahlFlaschen = 1
-    harzmengeProFlasche = harzFuerEinenZyklus
+    harzmengeProFlasche = Math.ceil(harzFuerEinenZyklus * 10) / 10
     harzmengeGesamt = harzmengeProFlasche
   } else if (e.anlagentyp === 'duplex') {
     // Duplex (Pendel): 2 Flaschen abwechselnd, nur 1 aktiv
@@ -428,6 +457,7 @@ export function berechne(e: Eingaben): Ergebnisse {
     anzahlFlaschen,
     regenIntervallProFlasche: Math.min(regenIntervallProFlasche, 999),
     regenAmpel,
+    tagesbedarfKapazitaet: tagesbedarf,
     tagesverbrauch,
     durchEnthaerter,
     verschneidungProzent: weichwasserAnteil * 100,

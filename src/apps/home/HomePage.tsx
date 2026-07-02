@@ -71,7 +71,7 @@ export default function HomePage() {
       {/* Content */}
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Willkommen</h2>
+          <h2 className="text-2xl font-bold sm:text-3xl bg-gradient-to-r from-slate-900 via-brand-800 to-brand-600 bg-clip-text text-transparent">Willkommen</h2>
           <p className="mt-2 text-sm text-slate-500">Wähle ein Werkzeug um loszulegen</p>
         </div>
 
@@ -81,7 +81,7 @@ export default function HomePage() {
               <Link
                 key={app.title}
                 to={app.path}
-                className="group card-glass rounded-2xl p-6 shadow-sm border-2 border-transparent hover:border-brand-300 hover:shadow-lg hover:shadow-brand-100/50 transition-all"
+                className="group card-glass rounded-2xl p-6 shadow-sm border-2 border-transparent hover:border-brand-300 hover:shadow-lg hover:shadow-brand-100/50 hover:-translate-y-0.5 transition-all"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-md shadow-brand-200 group-hover:shadow-lg group-hover:shadow-brand-200 transition-shadow">
