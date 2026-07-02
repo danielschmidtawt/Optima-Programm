@@ -4,6 +4,8 @@
 
 export type AnlagenTyp = 'simplex' | 'duplex' | 'parallel'
 
+export type AnschlussGroesse = '' | '1"' | '5/4"' | '1½"' | '2"'
+
 export interface Eingaben {
   projektname: string
   bearbeiter: string
@@ -13,6 +15,7 @@ export interface Eingaben {
   bwLu: number              // Belastungswerte
   bwAuto: boolean
   anlagentyp: AnlagenTyp
+  anschluss: AnschlussGroesse
   // Erweiterte Einstellungen
   verbrauchProPerson: number  // l/Tag
   regenIntervallTage: number  // Tage
@@ -109,6 +112,20 @@ export function kategorieLabel(k: AnlagenKategorie): string {
   return KATEGORIE_LABELS[k]
 }
 
+export function kopfgroesse(k: AnlagenKategorie): string {
+  switch (k) {
+    case 'einzel_1':
+    case 'twin_1':
+    case 'parallel_1':
+      return '1"'
+    case 'einzel_1_5':
+    case 'parallel_1_5':
+      return '5/4"'
+    case 'einzel_2':
+      return '2"'
+  }
+}
+
 // Anlagenempfehlung: passende Anlage aus Katalog finden
 function findePassendeAnlage(
   anlagentyp: AnlagenTyp,
@@ -159,6 +176,8 @@ export interface Ergebnisse {
   // Anlagenempfehlung
   empfehlung: string
   anlagentypEmpfehlung: string
+  // Anschluss / Parallelverteiler
+  anschluss: AnschlussGroesse
   // Anlagenvorschlag aus Produktkatalog
   empfohleneAnlage: Anlage | null
   alternativeAnlagen: Anlage[]
@@ -348,6 +367,7 @@ export function berechne(e: Eingaben): Ergebnisse {
     spitzenvolumenstrom,
     volumenstromEnthaerter,
     druckverlust,
+    anschluss: e.anschluss,
     harzmengeGesamt: Math.max(0, harzmengeGesamt),
     harzmengeProFlasche: Math.max(0, harzmengeProFlasche),
     anzahlFlaschen,

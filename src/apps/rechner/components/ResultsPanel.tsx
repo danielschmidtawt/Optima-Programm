@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Ergebnisse, Anlage } from '../calc'
-import { kategorieLabel } from '../calc'
+import { kategorieLabel, kopfgroesse } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
@@ -40,9 +40,22 @@ function AmpelDot({ farbe }: { farbe: 'gruen' | 'gelb' | 'rot' }) {
   )
 }
 
-function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck }: {
-  anlage: Anlage; istEmpfehlung: boolean; onZurueck?: () => void
+function anschlussText(anschluss: string, anlage: Anlage): string | null {
+  if (!anschluss) return null
+  const kopf = kopfgroesse(anlage.kategorie)
+  if (anlage.betriebsart === 'parallel') {
+    return `Parallelverteiler: ${anschluss} (bauseitiger Anschluss), Köpfe 2× ${kopf}.`
+  }
+  if (anschluss !== kopf) {
+    return `Anschluss bauseits: ${anschluss} → Anlage ${kopf}, Reduktion/Anschlussgarnitur bauseits.`
+  }
+  return `Anschluss bauseits: ${anschluss}.`
+}
+
+function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck, anschluss }: {
+  anlage: Anlage; istEmpfehlung: boolean; onZurueck?: () => void; anschluss: string
 }) {
+  const anschlussHinweis = anschlussText(anschluss, anlage)
   return (
     <div className="rounded-xl bg-brand-50 border border-brand-200 p-4 mb-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -109,6 +122,11 @@ function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck }: {
           Durchfluss begrenzt durch 2" Verteiler (DN50, max. {anlage.maxAnschlussFluss} l/min bei 2 m/s)
         </p>
       )}
+      {anschlussHinweis && (
+        <div className="mt-3 rounded-lg bg-white/60 border border-brand-100 px-3 py-2">
+          <p className="text-sm font-medium text-brand-700">{anschlussHinweis}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -156,6 +174,12 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Natrium nach Enthärtung</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.natriumNachEnthaertung)} mg/l {e.natriumWarnung ? '⚠' : '✓'}</td>
             </tr>
+            {e.anschluss && angezeigte && (
+              <tr>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss / Verteiler</td>
+                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{anschlussText(e.anschluss, angezeigte)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -169,6 +193,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               anlage={angezeigte}
               istEmpfehlung={istEmpfehlung}
               onZurueck={() => setOverride(null)}
+              anschluss={e.anschluss}
             />
 
             {andereAnlagen.length > 0 && (
@@ -328,6 +353,8 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
                     ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
                     : 'Regenerationsintervall im optimalen Bereich.',
               ]
+              const anschlInfo = a ? anschlussText(e.anschluss, a) : null
+              if (anschlInfo) lines.push(anschlInfo)
               if (!istEmpfehlung && a) {
                 lines.push(`\nHinweis: Manuell ausgewählte Anlage (nicht die berechnete Empfehlung).`)
               }

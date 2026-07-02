@@ -1,4 +1,4 @@
-import type { Eingaben } from '../calc'
+import type { Eingaben, AnschlussGroesse } from '../calc'
 
 interface Props {
   eingaben: Eingaben
@@ -50,7 +50,7 @@ export function ProjectInputs({ eingaben, update }: Props) {
           </Field>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Field label="Rohwasserhärte" unit="°dH">
             <input
               type="number"
@@ -80,6 +80,19 @@ export function ProjectInputs({ eingaben, update }: Props) {
               min={1}
               step={1}
             />
+          </Field>
+          <Field label="Bauseitiger Anschluss">
+            <select
+              value={eingaben.anschluss}
+              onChange={e => update('anschluss', e.target.value as AnschlussGroesse)}
+              className={inputClass}
+            >
+              <option value="">– optional –</option>
+              <option value='1"'>1"</option>
+              <option value='5/4"'>5/4"</option>
+              <option value='1½"'>1½"</option>
+              <option value='2"'>2"</option>
+            </select>
           </Field>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-600">

@@ -17,6 +17,7 @@ const DEFAULTS: Eingaben = {
   bwLu: 11.76,
   bwAuto: true,
   anlagentyp: 'duplex',
+  anschluss: '',
   verbrauchProPerson: 150,
   regenIntervallTage: 3,
   natriumRohwasser: 5,
@@ -69,6 +70,7 @@ export default function RechnerApp() {
               eingaben.anlagentyp === 'simplex' ? 'Simplex' :
               eingaben.anlagentyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
             } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → {eingaben.resthaerte} °dH
+            {eingaben.anschluss && <> · Anschluss: {eingaben.anschluss}</>}
           </p>
         </div>
         <div className="print-meta">
