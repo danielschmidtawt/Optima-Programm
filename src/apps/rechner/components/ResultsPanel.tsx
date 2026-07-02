@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useMemo } from 'react'
 import type { Ergebnisse, Anlage } from '../calc'
-import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ANSCHLUSS_MAX_DURCHFLUSS } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
