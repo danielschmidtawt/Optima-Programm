@@ -126,6 +126,41 @@ export function kopfgroesse(k: AnlagenKategorie): string {
   }
 }
 
+// Max. sinnvoller Durchfluss pro Anschlussgrösse bei ~2 m/s Fliessgeschwindigkeit
+export const ANSCHLUSS_MAX_DURCHFLUSS: Record<string, number> = {
+  '1"':   0.9,  // l/s
+  '5/4"': 1.4,
+  '1½"':  2.0,
+  '2"':   3.3,
+}
+
+export interface FlussProKopfPruefung {
+  flussProjKopfLMin: number
+  maxProKopfLMin: number
+  warnung: string | null
+}
+
+export function pruefeFlussProKopf(
+  volumenstromEnthaerter: number,
+  anlagentyp: AnlagenTyp,
+  anlage: Anlage,
+): FlussProKopfPruefung {
+  const veProKopf = anlagentyp === 'parallel'
+    ? volumenstromEnthaerter / 2
+    : volumenstromEnthaerter
+  const flussProjKopfLMin = veProKopf * 60
+
+  const maxProKopfLMin = anlagentyp === 'parallel'
+    ? anlage.durchflussSpitze / 2
+    : anlage.durchflussSpitze
+
+  const warnung = flussProjKopfLMin > maxProKopfLMin
+    ? `Achtung: Durchfluss pro Kopf (${flussProjKopfLMin.toFixed(1)} l/min) übersteigt das Ventil-Maximum (${maxProKopfLMin.toFixed(1)} l/min). Grössere Anlage oder Parallelschaltung prüfen.`
+    : null
+
+  return { flussProjKopfLMin, maxProKopfLMin, warnung }
+}
+
 // Anlagenempfehlung: passende Anlage aus Katalog finden
 function findePassendeAnlage(
   anlagentyp: AnlagenTyp,
@@ -178,6 +213,7 @@ export interface Ergebnisse {
   anlagentypEmpfehlung: string
   // Anschluss / Parallelverteiler
   anschluss: AnschlussGroesse
+  plausiCheck1: string | null
   // Anlagenvorschlag aus Produktkatalog
   empfohleneAnlage: Anlage | null
   alternativeAnlagen: Anlage[]
@@ -363,11 +399,21 @@ export function berechne(e: Eingaben): Ergebnisse {
         : 'Regenerationsintervall im optimalen Bereich.',
   ].join('\n')
 
+  // ── Plausi-Check 1: Hauptleitung vs. V1 ─────────────────────────────────
+  let plausiCheck1: string | null = null
+  if (e.anschluss) {
+    const maxFluss = ANSCHLUSS_MAX_DURCHFLUSS[e.anschluss]
+    if (maxFluss && spitzenvolumenstrom > maxFluss) {
+      plausiCheck1 = `Achtung: Gebäude-Spitzenvolumenstrom (V1 = ${spitzenvolumenstrom.toFixed(3)} l/s) übersteigt den gewählten Anschluss (${e.anschluss} → max ~${maxFluss} l/s). Grössere Hauptleitung prüfen.`
+    }
+  }
+
   return {
     spitzenvolumenstrom,
     volumenstromEnthaerter,
     druckverlust,
     anschluss: e.anschluss,
+    plausiCheck1,
     harzmengeGesamt: Math.max(0, harzmengeGesamt),
     harzmengeProFlasche: Math.max(0, harzmengeProFlasche),
     anzahlFlaschen,

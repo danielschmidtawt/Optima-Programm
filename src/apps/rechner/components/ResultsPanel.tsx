@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import type { Ergebnisse, Anlage } from '../calc'
-import { kategorieLabel, kopfgroesse } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ANSCHLUSS_MAX_DURCHFLUSS } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
@@ -44,7 +45,7 @@ function anschlussText(anschluss: string, anlage: Anlage): string | null {
   if (!anschluss) return null
   const kopf = kopfgroesse(anlage.kategorie)
   if (anlage.betriebsart === 'parallel') {
-    return `Parallelverteiler: ${anschluss} (bauseitiger Anschluss), Köpfe 2× ${kopf}.`
+    return `Parallelverteiler bauseits in Stammgrösse (${anschluss}) ausführen, Köpfe 2× ${kopf}.`
   }
   if (anschluss !== kopf) {
     return `Anschluss bauseits: ${anschluss} → Anlage ${kopf}, Reduktion/Anschlussgarnitur bauseits.`
@@ -145,6 +146,12 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
     ? [e.empfohleneAnlage, ...e.alternativeAnlagen].filter(a => a !== angezeigte)
     : []
 
+  // Plausi-Check 2: Durchfluss pro Kopf vs. Ventil-Maximum
+  const flussCheck = useMemo(() => {
+    if (!angezeigte) return null
+    return pruefeFlussProKopf(e.volumenstromEnthaerter, angezeigte.betriebsart, angezeigte)
+  }, [angezeigte, e.volumenstromEnthaerter])
+
   // Harzmenge aus gewählter Anlage (oder Fallback auf Berechnung)
   const harzGesamt = angezeigte ? angezeigte.harz : e.harzmengeGesamt
   const harzProEinheit = angezeigte?.harzProTank ?? (angezeigte ? angezeigte.harz : e.harzmengeProFlasche)
@@ -178,6 +185,14 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               <tr>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss / Verteiler</td>
                 <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{anschlussText(e.anschluss, angezeigte)}</td>
+              </tr>
+            )}
+            {flussCheck && (
+              <tr>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf</td>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (max. {flussCheck.maxProKopfLMin.toFixed(1)} l/min) {flussCheck.warnung ? '⚠' : '✓'}</td>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss-Check</td>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{e.plausiCheck1 ? '⚠ V1 > Anschluss' : (e.anschluss ? '✓ OK' : '–')}</td>
               </tr>
             )}
           </tbody>
@@ -234,6 +249,53 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
           </div>
         )}
       </div>
+
+      {/* Plausi-Checks – Anschluss & Durchfluss */}
+      {(e.plausiCheck1 || flussCheck?.warnung || (angezeigte && flussCheck)) && (
+        <div className="space-y-3">
+          {/* Check 1: Hauptleitung vs. V1 */}
+          {e.plausiCheck1 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-800">{e.plausiCheck1}</p>
+            </div>
+          )}
+          {/* Check 2: Durchfluss pro Kopf */}
+          {flussCheck?.warnung && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+              <p className="text-sm font-medium text-red-800">{flussCheck.warnung}</p>
+            </div>
+          )}
+          {/* Durchfluss pro Kopf – immer anzeigen wenn Anlage gewählt */}
+          {angezeigte && flussCheck && (
+            <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-800">Durchfluss pro Kopf</h2>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatCard
+                  label="VE pro Kopf"
+                  value={flussCheck.flussProjKopfLMin.toFixed(1)}
+                  unit="l/min"
+                  accent={!flussCheck.warnung}
+                />
+                <StatCard
+                  label="Max. Ventil/Kopf"
+                  value={flussCheck.maxProKopfLMin.toFixed(1)}
+                  unit="l/min"
+                />
+                <div className="flex items-center rounded-xl p-4 border" style={{
+                  backgroundColor: flussCheck.warnung ? '#fef2f2' : '#f0fdf4',
+                  borderColor: flussCheck.warnung ? '#fecaca' : '#bbf7d0',
+                }}>
+                  <p className={`text-sm font-medium ${flussCheck.warnung ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {flussCheck.warnung
+                      ? 'Ventil-Maximum überschritten'
+                      : 'Durchfluss innerhalb Ventil-Kapazität'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Harzmenge – aus gewählter Anlage */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
@@ -355,6 +417,11 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
               ]
               const anschlInfo = a ? anschlussText(e.anschluss, a) : null
               if (anschlInfo) lines.push(anschlInfo)
+              if (flussCheck) {
+                lines.push(`Durchfluss pro Kopf: ${flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Ventil-Max: ${flussCheck.maxProKopfLMin.toFixed(1)} l/min).`)
+              }
+              if (e.plausiCheck1) lines.push(e.plausiCheck1)
+              if (flussCheck?.warnung) lines.push(flussCheck.warnung)
               if (!istEmpfehlung && a) {
                 lines.push(`\nHinweis: Manuell ausgewählte Anlage (nicht die berechnete Empfehlung).`)
               }
