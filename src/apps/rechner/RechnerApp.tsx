@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
-import { berechne, type Eingaben, type AnlagenTyp } from './calc'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { berechne, type Eingaben, type AnlagenTyp, type Anlage } from './calc'
 import { Header } from '../../shared/Header'
 import { ProjectInputs } from './components/ProjectInputs'
 import { AnlagenTypSelector } from './components/AnlagenTypSelector'
@@ -62,23 +62,28 @@ export default function RechnerApp() {
 
   const ergebnisse = useMemo(() => berechne(eingaben), [eingaben])
 
+  // Manuelle Anlagenauswahl (Override der Empfehlung) – zurücksetzen bei neuer Empfehlung
+  const [anlagenOverride, setAnlagenOverride] = useState<Anlage | null>(null)
+  useEffect(() => setAnlagenOverride(null), [ergebnisse.empfohleneAnlage])
+  const angezeigteAnlage = anlagenOverride ?? ergebnisse.empfohleneAnlage
+  const effektiverTyp = angezeigteAnlage?.betriebsart ?? eingaben.anlagentyp
+
   return (
     <>
       {/* Print Header – nur im Druck sichtbar */}
       <div className="print-header print-only hidden">
         <div>
-          <h1>{eingaben.projektname || 'pH-Optima Konfiguration V1'}</h1>
+          <h1>{eingaben.projektname || 'Anlagenauslegung Wasserenthärtung'}</h1>
           <p className="print-sub">
-            Bearbeiter: {eingaben.bearbeiter || '–'} · Anlagentyp: {
-              eingaben.anlagentyp === 'simplex' ? 'Simplex' :
-              eingaben.anlagentyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
-            } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → {eingaben.resthaerte} °dH
-            {eingaben.anschluss && <> · Anschluss: {eingaben.anschluss}</>}
-            {!eingaben.v1Auto && <> · V1: {eingaben.v1Manuell} l/s (manuell)</>}
+            Auslegung Wasserenthärtung · Bearbeiter: {eingaben.bearbeiter || '–'} · Anlagentyp: {
+              effektiverTyp === 'simplex' ? 'Simplex' :
+              effektiverTyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
+            } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → Resthärte {eingaben.resthaerte} °dH
+            {eingaben.anschluss && <> · Anschluss bauseits: {eingaben.anschluss}</>}
           </p>
         </div>
         <div className="print-meta">
-          <p className="print-logo">pH-Optima Konfiguration V1</p>
+          <p className="print-logo">pH-Optima</p>
           <p>{new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
         </div>
       </div>
@@ -172,7 +177,7 @@ export default function RechnerApp() {
 
         <AdvancedSettings eingaben={eingaben} update={update} />
 
-        <ResultsPanel ergebnisse={ergebnisse} />
+        <ResultsPanel ergebnisse={ergebnisse} override={anlagenOverride} setOverride={setAnlagenOverride} />
 
         <UnitConverter />
 
@@ -181,7 +186,7 @@ export default function RechnerApp() {
 
       {/* Print Footer – nur im Druck sichtbar */}
       <div className="print-footer print-only hidden">
-        pH-Optima Konfiguration V1 · Erstellt am {new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · Alle Angaben ohne Gewähr
+        pH-Optima · Anlagenauslegung Wasserenthärtung · Erstellt am {new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · Alle Angaben ohne Gewähr
       </div>
     </>
   )

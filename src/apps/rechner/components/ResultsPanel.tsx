@@ -1,10 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
-import type { Ergebnisse, Anlage } from '../calc'
-import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, intervallFuerAnlage, ampelFuerIntervall } from '../calc'
+import { useState, useMemo } from 'react'
+import type { Ergebnisse, Anlage, AnlagenKategorie } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, intervallFuerAnlage, ampelFuerIntervall, ANLAGEN_KATALOG } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
+  override: Anlage | null
+  setOverride: (a: Anlage | null) => void
 }
+
+const KATEGORIEN_REIHENFOLGE: AnlagenKategorie[] = [
+  'einzel_1', 'twin_1', 'parallel_1', 'einzel_1_5', 'parallel_1_5', 'einzel_2',
+]
 
 function fmt(n: number, decimals = 1): string {
   if (!isFinite(n)) return '–'
@@ -67,13 +73,13 @@ function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck, anschluss }: {
           {!istEmpfehlung && onZurueck && (
             <button
               onClick={onZurueck}
-              className="rounded-full border border-brand-300 bg-white px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition"
+              className="no-print rounded-full border border-brand-300 bg-white px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 transition"
             >
               Zurück zur Empfehlung
             </button>
           )}
           {istEmpfehlung && (
-            <span className="rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white whitespace-nowrap">
+            <span className="no-print rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white whitespace-nowrap">
               Empfohlen
             </span>
           )}
@@ -131,11 +137,8 @@ function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck, anschluss }: {
   )
 }
 
-export function ResultsPanel({ ergebnisse: e }: Props) {
-  const [override, setOverride] = useState<Anlage | null>(null)
-
-  // Reset bei neuer Berechnung
-  useEffect(() => setOverride(null), [e.empfohleneAnlage])
+export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
+  const [zeigeSortiment, setZeigeSortiment] = useState(false)
 
   const angezeigte = override ?? e.empfohleneAnlage
   const istEmpfehlung = angezeigte === e.empfohleneAnlage
@@ -152,9 +155,12 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
   }, [angezeigte, e.volumenstromEnthaerter])
 
   // Harzmenge aus gewählter Anlage (oder Fallback auf Berechnung)
-  const harzGesamt = angezeigte ? angezeigte.harz : e.harzmengeGesamt
+  // Duplex: Katalog-Harz ist PRO Flasche → Gesamt = 2×; Parallel: Katalog-Harz ist Gesamt
+  const harzGesamt = angezeigte
+    ? (angezeigte.betriebsart === 'duplex' ? angezeigte.harz * 2 : angezeigte.harz)
+    : e.harzmengeGesamt
   const harzProEinheit = angezeigte?.harzProTank ?? (angezeigte ? angezeigte.harz : e.harzmengeProFlasche)
-  const anzFlaschen = angezeigte?.harzProTank != null ? 2 : e.anzahlFlaschen
+  const anzFlaschen = angezeigte ? (angezeigte.betriebsart === 'simplex' ? 1 : 2) : e.anzahlFlaschen
 
   // Regenerationsintervall der GEWÄHLTEN Anlage (nicht des theoretischen Minimums)
   const intervallAngezeigt = angezeigte
@@ -164,40 +170,44 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
 
   return (
     <section className="mb-6 space-y-6">
-      {/* ── Druck-Zusammenfassung (nur im Print sichtbar) ── */}
+      {/* ── Druck-Zusammenfassung (nur im Print sichtbar, kundentauglich) ── */}
       <div className="hidden print-only">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', marginBottom: '6pt' }}>
           <tbody>
+            {angezeigte && (
+              <tr>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Anlage</td>
+                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600 }}>{angezeigte.name} · Art.Nr. {angezeigte.artNr} · {kategorieLabel(angezeigte.kategorie)}</td>
+              </tr>
+            )}
             <tr>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Harzmenge gesamt</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{harzGesamt} Liter {anzFlaschen === 2 ? `(${anzFlaschen}× ${harzProEinheit} l)` : ''}</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Regenerationsintervall</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{fmt(intervallAngezeigt)} Tage</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>ca. {fmt(intervallAngezeigt)} Tage</td>
             </tr>
             <tr>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom V1</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s ({e.v1Quelle === 'manuell' ? 'manuell, lt. Schema' : 'aus Personen, SVGW W3'})</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s ({e.v1Quelle === 'manuell' ? 'lt. Schema' : 'SVGW W3'})</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Salzverbrauch/Jahr</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.salzverbrauchJahr, 0)} kg ({fmt(e.betriebskostenJahr, 0)} CHF)</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>ca. {fmt(e.salzverbrauchJahr, 0)} kg ({fmt(e.betriebskostenJahr, 0)} CHF)</td>
             </tr>
             <tr>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Verschneidung</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.weichwasserAnteil, 0)}% Weichwasser / {fmt(e.rohwasserAnteil, 0)}% Rohwasser</td>
               <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Natrium nach Enthärtung</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.natriumNachEnthaertung)} mg/l {e.natriumWarnung ? '⚠' : '✓'}</td>
+              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.natriumNachEnthaertung)} mg/l (Grenzwert 200 mg/l)</td>
             </tr>
+            {flussCheck && angezeigte && (
+              <tr>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf ({kopfgroesse(angezeigte.kategorie)})</td>
+                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenndurchfluss {flussCheck.nennProKopfLMin.toFixed(1)} / max. {flussCheck.maxProKopfLMin.toFixed(1)} l/min)</td>
+              </tr>
+            )}
             {e.anschluss && angezeigte && (
               <tr>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss / Verteiler</td>
                 <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{anschlussText(e.anschluss, angezeigte)}</td>
-              </tr>
-            )}
-            {flussCheck && (
-              <tr>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf{angezeigte ? ` (${kopfgroesse(angezeigte.kategorie)})` : ''}</td>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenn {flussCheck.nennProKopfLMin.toFixed(1)} / Max {flussCheck.maxProKopfLMin.toFixed(1)}) {flussCheck.status === 'ueberlast' ? '⚠' : flussCheck.status === 'spitze' ? '△ Spitzenbereich' : '✓'}</td>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss-Check</td>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{e.plausiCheck1 ? '⚠ V1 > Anschluss' : (e.anschluss ? '✓ OK' : '–')}</td>
               </tr>
             )}
           </tbody>
@@ -253,11 +263,72 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
             </p>
           </div>
         )}
+
+        {/* Gesamtes Sortiment – manuelle Auswahl aus allen Anlagen (nur Bildschirm) */}
+        <div className="no-print mt-4 border-t border-slate-200/70 pt-3">
+          <button
+            onClick={() => setZeigeSortiment(!zeigeSortiment)}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50/50 transition"
+          >
+            <span>Gesamtes Sortiment {zeigeSortiment ? 'ausblenden' : 'durchsuchen'} · {ANLAGEN_KATALOG.length} Anlagen</span>
+            <svg
+              className={`h-4 w-4 transition-transform duration-300 ${zeigeSortiment ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+            </svg>
+          </button>
+          {zeigeSortiment && (
+            <div className="mt-3 space-y-4">
+              {KATEGORIEN_REIHENFOLGE.map(kat => {
+                const anlagen = ANLAGEN_KATALOG.filter(a => a.kategorie === kat)
+                if (anlagen.length === 0) return null
+                return (
+                  <div key={kat}>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{kategorieLabel(kat)}</p>
+                    <div className="space-y-1.5">
+                      {anlagen.map(a => {
+                        const harzBedarf = a.betriebsart === 'parallel' ? e.harzmengeGesamt : e.harzmengeProFlasche
+                        const passt = a.harz >= harzBedarf && a.durchflussSpitze >= e.volumenstromEnthaerter * 60
+                        const istAktiv = a === angezeigte
+                        return (
+                          <button
+                            key={a.artNr}
+                            onClick={() => setOverride(a === e.empfohleneAnlage ? null : a)}
+                            className={`w-full rounded-lg border px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-left transition-all cursor-pointer ${
+                              istAktiv
+                                ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-200'
+                                : 'border-slate-200/70 bg-white/50 hover:border-brand-300 hover:bg-brand-50/30'
+                            }`}
+                          >
+                            <span className="font-medium text-slate-700">{a.name}</span>
+                            <span className="text-slate-400">Art.Nr. {a.artNr}</span>
+                            <span className="text-slate-500">{a.harz} l</span>
+                            <span className="text-slate-500">{a.durchflussSpitze} l/min</span>
+                            <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              istAktiv
+                                ? 'bg-brand-500 text-white'
+                                : passt
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {istAktiv ? 'Ausgewählt' : passt ? 'Passend' : 'Unterdimensioniert'}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Plausi-Checks – Anschluss & Durchfluss */}
+      {/* Plausi-Checks – Anschluss & Durchfluss (nur intern, nicht im Kunden-PDF) */}
       {(e.plausiCheck1 || flussCheck?.warnung || (angezeigte && flussCheck)) && (
-        <div className="space-y-3">
+        <div className="no-print space-y-3">
           {/* Check 1: Hauptleitung vs. V1 */}
           {e.plausiCheck1 && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -351,7 +422,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
             value={fmt(intervallAngezeigt)}
             unit="Tage"
           />
-          <div className="flex items-center rounded-xl bg-white/60 border border-slate-200/70 p-4">
+          <div className="no-print flex items-center rounded-xl bg-white/60 border border-slate-200/70 p-4">
             <div>
               <p className="text-xs font-medium text-slate-500 mb-1">Bewertung</p>
               <AmpelDot farbe={ampelAngezeigt} />
@@ -410,52 +481,70 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
         </div>
       </div>
 
-      {/* Anlagenempfehlung – dynamisch basierend auf ausgewählter Anlage */}
+      {/* Anlagenempfehlung – Kundentext (druckt) + interne Hinweise (nur Bildschirm) */}
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
         <h2 className="section-title mb-3 text-lg font-semibold text-slate-800">Anlagenempfehlung</h2>
-        <div className="rounded-xl bg-brand-50 border border-brand-200 p-4">
-          <pre className="whitespace-pre-wrap text-sm leading-relaxed text-brand-800 font-sans">
-            {(() => {
-              const a = angezeigte
-              const typText = e.anzahlFlaschen === 1
-                ? 'Simplex-Anlage (1 Harzflasche)'
-                : a?.betriebsart === 'duplex'
-                  ? 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
-                  : 'Parallel-Anlage (2 Tanks, gleichzeitig durchströmt)'
-              const name = a ? a.name : null
-              const harz = a ? a.harz : e.harzmengeGesamt
-              const proTank = a?.harzProTank
-              let harzInfo = `${harz} Liter`
-              if (proTank != null) harzInfo += ` (2 Tanks × ${proTank} Liter)`
-              else if (e.anzahlFlaschen === 2) harzInfo += ` (2 × ${(harz / 2).toFixed(1)} Liter)`
+        {(() => {
+          const a = angezeigte
+          const betriebsart = a?.betriebsart ?? (e.anzahlFlaschen === 1 ? 'simplex' : 'duplex')
+          const typText = betriebsart === 'simplex'
+            ? 'Simplex-Anlage (1 Harzflasche)'
+            : betriebsart === 'duplex'
+              ? 'Duplex-Anlage (2 Flaschen, Pendelbetrieb)'
+              : 'Parallel-Anlage (2 Tanks, gleichzeitig durchströmt)'
+          const name = a ? a.name : null
+          const harz = a ? a.harz : e.harzmengeGesamt
+          const proTank = a?.harzProTank
+          let harzInfo = `${harz} Liter`
+          if (proTank != null) harzInfo += ` (2 Tanks × ${proTank} Liter)`
+          else if (a ? betriebsart === 'duplex' : e.anzahlFlaschen === 2) harzInfo += a
+            ? ` pro Flasche (2 × ${harz} Liter)`
+            : ` (2 × ${(harz / 2).toFixed(1)} Liter)`
 
-              const v1Label = e.v1Quelle === 'manuell' ? 'manuell, lt. Schema' : 'aus Personen, SVGW W3'
-              const lines = [
-                `Empfohlene Konfiguration: ${typText}${name ? ` – ${name}` : ''}.`,
-                `Spitzenvolumenstrom V1: ${fmt(e.spitzenvolumenstrom, 3)} l/s (${v1Label}).`,
-                `Gesamtes Harzvolumen: ${harzInfo}.`,
-                `Regenerationsintervall: ca. ${fmt(intervallAngezeigt)} Tage.`,
-                `Salzvorrat: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
-                ampelAngezeigt === 'rot'
-                  ? '⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.'
-                  : ampelAngezeigt === 'gelb'
-                    ? 'Hinweis: Regenerationsintervall knapp – Anlage prüfen.'
-                    : 'Regenerationsintervall im optimalen Bereich.',
-              ]
-              const anschlInfo = a ? anschlussText(e.anschluss, a) : null
-              if (anschlInfo) lines.push(anschlInfo)
-              if (flussCheck) {
-                lines.push(`Durchfluss pro Kopf: ${flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Ventil-Max: ${flussCheck.maxProKopfLMin.toFixed(1)} l/min).`)
-              }
-              if (e.plausiCheck1) lines.push(e.plausiCheck1)
-              if (flussCheck?.warnung) lines.push(flussCheck.warnung)
-              if (!istEmpfehlung && a) {
-                lines.push(`\nHinweis: Manuell ausgewählte Anlage (nicht die berechnete Empfehlung).`)
-              }
-              return lines.join('\n')
-            })()}
-          </pre>
-        </div>
+          const v1Label = e.v1Quelle === 'manuell' ? 'lt. Schema' : 'SVGW W3'
+
+          // Kundentext – erscheint auch im PDF
+          const kundenZeilen = [
+            `Ausgelegte Konfiguration: ${typText}${name ? ` – ${name}` : ''}.`,
+            `Spitzenvolumenstrom V1: ${fmt(e.spitzenvolumenstrom, 3)} l/s (${v1Label}).`,
+            `Harzvolumen: ${harzInfo}.`,
+            `Regenerationsintervall: ca. ${fmt(intervallAngezeigt)} Tage.`,
+            `Salzverbrauch: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
+          ]
+          const anschlInfo = a ? anschlussText(e.anschluss, a) : null
+          if (anschlInfo) kundenZeilen.push(anschlInfo)
+
+          // Interne Hinweise – nur am Bildschirm
+          const interneZeilen: string[] = []
+          if (ampelAngezeigt === 'rot') {
+            interneZeilen.push('⚠ Kritisch: Regenerationsintervall unter 1 Tag – grössere Anlage oder weniger Personen empfohlen.')
+          } else if (ampelAngezeigt === 'gelb') {
+            interneZeilen.push('Regenerationsintervall knapp – Anlage prüfen.')
+          }
+          if (e.plausiCheck1) interneZeilen.push(e.plausiCheck1)
+          if (flussCheck?.warnung) interneZeilen.push(flussCheck.warnung)
+          if (!istEmpfehlung && a) {
+            interneZeilen.push('Manuell ausgewählte Anlage (nicht die berechnete Empfehlung).')
+          }
+
+          return (
+            <>
+              <div className="rounded-xl bg-brand-50 border border-brand-200 p-4">
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-brand-800 font-sans">
+                  {kundenZeilen.join('\n')}
+                </pre>
+              </div>
+              {interneZeilen.length > 0 && (
+                <div className="no-print mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-600">Interne Hinweise (nicht im PDF)</p>
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed text-amber-800 font-sans">
+                    {interneZeilen.join('\n')}
+                  </pre>
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
     </section>
   )
