@@ -56,7 +56,7 @@ function anschlussText(anschluss: string, anlage: Anlage): string | null {
   if (!anschluss) return null
   const kopf = kopfgroesse(anlage.kategorie)
   if (anlage.betriebsart === 'parallel') {
-    return `Parallelverteiler bauseits in Stammgrösse (${anschluss}) ausführen, Köpfe 2× ${kopf}.`
+    return `Parallelverteiler ${anschluss} (Stammgrösse gemäss bauseitigem Anschluss) im Lieferumfang inklusive, Köpfe 2× ${kopf}.`
   }
   if (anschluss !== kopf) {
     return `Anschluss bauseits: ${anschluss} → Anlage ${kopf}, Reduktion/Anschlussgarnitur bauseits.`

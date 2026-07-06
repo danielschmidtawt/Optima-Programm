@@ -76,7 +76,7 @@ input[type="number"] {
   /* Grundreset für sauberen Druck */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
-  html { font-size: 11px !important; }
+  html { font-size: 10px !important; }
 
   body {
     background: white !important;
@@ -124,31 +124,35 @@ input[type="number"] {
     background: white !important;
   }
 
-  /* Maximalbreite für Druck anpassen */
+  /* Maximalbreite für Druck anpassen (Seitenränder kommen vom Inhalt, da @page margin 0) */
   main {
     max-width: 100% !important;
-    padding: 0 12mm !important;
+    padding: 0 12mm 6mm 12mm !important;
   }
 
+  /* Karten nicht über Seitenumbrüche ziehen (nur Karten – Sections dürfen fliessen) */
+  .card-glass, .rounded-xl, .print-only table { break-inside: avoid !important; }
+  section { break-inside: auto !important; }
+
   /* ── Abstände komprimieren ──────────────────────────────── */
-  section { margin-bottom: 6pt !important; }
-  .mb-6 { margin-bottom: 6pt !important; }
-  .mb-4 { margin-bottom: 3pt !important; }
+  section { margin-bottom: 4pt !important; }
+  .mb-6 { margin-bottom: 4pt !important; }
+  .mb-4 { margin-bottom: 2pt !important; }
   .mb-3 { margin-bottom: 2pt !important; }
-  .mt-6 { margin-top: 6pt !important; }
-  .space-y-6 > * + * { margin-top: 6pt !important; }
+  .mt-6 { margin-top: 4pt !important; }
+  .space-y-6 > * + * { margin-top: 4pt !important; }
 
   /* Karten-Padding reduzieren */
   .card-glass,
   .rounded-2xl {
-    padding: 8pt 10pt !important;
-    border-radius: 6px !important;
+    padding: 6pt 9pt !important;
+    border-radius: 5px !important;
   }
 
   /* Stat-Karten innerhalb der Grids kompakter */
   .rounded-xl {
-    padding: 5pt 8pt !important;
-    border-radius: 5px !important;
+    padding: 4pt 7pt !important;
+    border-radius: 4px !important;
   }
 
   /* Grid-Gaps reduzieren */
@@ -159,15 +163,15 @@ input[type="number"] {
 
   /* Sektions-Überschriften: klar, nicht zu gross */
   h2, .text-lg {
-    font-size: 12pt !important;
-    line-height: 1.3 !important;
-    margin-bottom: 4pt !important;
+    font-size: 10.5pt !important;
+    line-height: 1.25 !important;
+    margin-bottom: 3pt !important;
   }
 
   /* Stat-Werte: gross genug zum Lesen, aber nicht überdimensioniert */
   .text-2xl, .text-3xl, .sm\:text-3xl {
-    font-size: 16pt !important;
-    line-height: 1.2 !important;
+    font-size: 13pt !important;
+    line-height: 1.15 !important;
   }
 
   .text-lg:not(h2) {
@@ -277,23 +281,22 @@ input[type="number"] {
     letter-spacing: 2px;
   }
 
-  /* ── Fusszeile ─────────────────────────────────────────── */
+  /* ── Fusszeile: statisch am Dokumentende (keine wiederholte Fixierung) ── */
   .print-footer {
     display: block !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 4mm 12mm;
+    position: static;
+    margin-top: 6mm;
+    padding: 3mm 12mm 10mm 12mm;
     border-top: 1px solid #e2e8f0;
     font-size: 7pt !important;
     color: #94a3b8;
     text-align: center;
   }
 
-  /* A4-Seiteneinstellungen */
+  /* A4-Seiteneinstellungen: margin 0 unterdrückt die Browser-Kopf-/Fusszeile
+     (Datum, Seitentitel, URL, Seitenzahl) – Ränder kommen aus dem Inhalt selbst */
   @page {
     size: A4 portrait;
-    margin: 10mm 0 15mm 0;
+    margin: 0;
   }
 }
