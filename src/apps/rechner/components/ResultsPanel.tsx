@@ -194,7 +194,7 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
             )}
             {flussCheck && (
               <tr>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf</td>
+                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf{angezeigte ? ` (${kopfgroesse(angezeigte.kategorie)})` : ''}</td>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenn {flussCheck.nennProKopfLMin.toFixed(1)} / Max {flussCheck.maxProKopfLMin.toFixed(1)}) {flussCheck.status === 'ueberlast' ? '⚠' : flussCheck.status === 'spitze' ? '△ Spitzenbereich' : '✓'}</td>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss-Check</td>
                 <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{e.plausiCheck1 ? '⚠ V1 > Anschluss' : (e.anschluss ? '✓ OK' : '–')}</td>
@@ -273,7 +273,12 @@ export function ResultsPanel({ ergebnisse: e }: Props) {
           {/* Durchfluss pro Kopf – immer anzeigen wenn Anlage gewählt */}
           {angezeigte && flussCheck && (
             <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-              <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Durchfluss pro Kopf</h2>
+              <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">
+                Durchfluss pro Kopf
+                <span className="text-sm font-normal text-slate-400">
+                  ({angezeigte.betriebsart === 'parallel' ? '2× ' : ''}{kopfgroesse(angezeigte.kategorie)} Kopf)
+                </span>
+              </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                   label="VE pro Kopf"

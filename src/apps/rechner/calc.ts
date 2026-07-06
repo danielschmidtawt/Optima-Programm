@@ -115,12 +115,12 @@ export function kategorieLabel(k: AnlagenKategorie): string {
   return KATEGORIE_LABELS[k]
 }
 
+// Ventil-/Kopfgrösse der Anlage: Clack-Köpfe sind 5/4" (WS1 & WS1,5), nur WS2 hat 2"
 export function kopfgroesse(k: AnlagenKategorie): string {
   switch (k) {
     case 'einzel_1':
     case 'twin_1':
     case 'parallel_1':
-      return '1"'
     case 'einzel_1_5':
     case 'parallel_1_5':
       return '5/4"'

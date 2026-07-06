@@ -8,6 +8,7 @@ import {
   pruefeFlussProKopf,
   intervallFuerAnlage,
   ampelFuerIntervall,
+  kopfgroesse,
   ANLAGEN_KATALOG,
   ANSCHLUSS_MAX_DURCHFLUSS,
   HARZ_KAPAZITAET,
@@ -257,6 +258,17 @@ describe('Plausi-Check 2: Durchfluss pro Kopf', () => {
     const p = pruefeFlussProKopf(0.1, 'simplex', anlage('4397')) // 6 l/min auf MFH 100
     expect(p.status).toBe('ok')
     expect(p.warnung).toBeNull()
+  })
+})
+
+describe('Kopfgrössen', () => {
+  it('Clack-Köpfe sind 5/4" (WS1 & WS1,5), nur WS2 hat 2"', () => {
+    expect(kopfgroesse('einzel_1')).toBe('5/4"')
+    expect(kopfgroesse('twin_1')).toBe('5/4"')
+    expect(kopfgroesse('parallel_1')).toBe('5/4"')
+    expect(kopfgroesse('einzel_1_5')).toBe('5/4"')
+    expect(kopfgroesse('parallel_1_5')).toBe('5/4"')
+    expect(kopfgroesse('einzel_2')).toBe('2"')
   })
 })
 
