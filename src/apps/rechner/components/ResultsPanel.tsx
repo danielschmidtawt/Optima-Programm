@@ -1,12 +1,18 @@
 import { useState, useMemo } from 'react'
 import type { Ergebnisse, Anlage, AnlagenKategorie } from '../calc'
-import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, intervallFuerAnlage, ampelFuerIntervall, ANLAGEN_KATALOG } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ampelFuerIntervall, betriebFuerAnlage, ANLAGEN_KATALOG } from '../calc'
 
 interface Props {
   ergebnisse: Ergebnisse
   override: Anlage | null
   setOverride: (a: Anlage | null) => void
+  pdfZeigeSalz: boolean
+  pdfZeigeKosten: boolean
 }
+
+// Druck-Tabellen-Stile: dezent, technisch (AWT)
+const thStyle: React.CSSProperties = { padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f1f5f9' }
+const tdStyle: React.CSSProperties = { padding: '3pt 6pt', border: '1px solid #cbd5e1' }
 
 const KATEGORIEN_REIHENFOLGE: AnlagenKategorie[] = [
   'einzel_1', 'twin_1', 'parallel_1', 'einzel_1_5', 'parallel_1_5', 'einzel_2',
@@ -17,11 +23,11 @@ function fmt(n: number, decimals = 1): string {
   return n.toFixed(decimals)
 }
 
-function StatCard({ label, value, unit, large, accent }: {
-  label: string; value: string; unit?: string; large?: boolean; accent?: boolean
+function StatCard({ label, value, unit, large, accent, className = '' }: {
+  label: string; value: string; unit?: string; large?: boolean; accent?: boolean; className?: string
 }) {
   return (
-    <div className={`rounded-xl p-4 transition-colors ${accent ? 'bg-gradient-to-br from-brand-50 to-sky-50/60 border border-brand-200/80' : 'bg-white/60 border border-slate-200/70'}`}>
+    <div className={`rounded-xl p-4 transition-colors ${accent ? 'bg-gradient-to-br from-brand-50 to-sky-50/60 border border-brand-200/80' : 'bg-white/60 border border-slate-200/70'} ${className}`}>
       <p className="text-xs font-medium text-slate-500 mb-1">{label}</p>
       <p className={`font-bold tracking-tight ${large ? 'text-2xl sm:text-3xl' : 'text-lg'} ${accent ? 'text-brand-700' : 'text-slate-900'}`}>
         {value}
@@ -37,7 +43,7 @@ function AmpelDot({ farbe }: { farbe: 'gruen' | 'gelb' | 'rot' }) {
     gelb: 'bg-amber-400 shadow-amber-200',
     rot: 'bg-red-400 shadow-red-200',
   }
-  const labels = { gruen: 'Optimal (2–4 Tage)', gelb: 'Knapp (1–2 Tage)', rot: 'Kritisch (< 1 Tag)' }
+  const labels = { gruen: 'Optimal (≥ 2 Tage)', gelb: 'Knapp (1–2 Tage)', rot: 'Kritisch (< 1 Tag)' }
   return (
     <span className="inline-flex items-center gap-2">
       <span className={`inline-block h-3 w-3 rounded-full shadow-md ${colors[farbe]}`} />
@@ -137,7 +143,7 @@ function AnlageDetailCard({ anlage, istEmpfehlung, onZurueck, anschluss }: {
   )
 }
 
-export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
+export function ResultsPanel({ ergebnisse: e, override, setOverride, pdfZeigeSalz, pdfZeigeKosten }: Props) {
   const [zeigeSortiment, setZeigeSortiment] = useState(false)
 
   const angezeigte = override ?? e.empfohleneAnlage
@@ -162,11 +168,21 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
   const harzProEinheit = angezeigte?.harzProTank ?? (angezeigte ? angezeigte.harz : e.harzmengeProFlasche)
   const anzFlaschen = angezeigte ? (angezeigte.betriebsart === 'simplex' ? 1 : 2) : e.anzahlFlaschen
 
-  // Regenerationsintervall der GEWÄHLTEN Anlage (nicht des theoretischen Minimums)
-  const intervallAngezeigt = angezeigte
-    ? Math.min(intervallFuerAnlage(angezeigte, e.tagesbedarfKapazitaet), 999)
-    : e.regenIntervallProFlasche
+  // Betriebsdaten der GEWÄHLTEN Anlage: Intervall (inkl. Zwangsregeneration) + Salz
+  const betrieb = useMemo(() => {
+    if (!angezeigte) return null
+    return betriebFuerAnlage(angezeigte, e.tagesbedarfKapazitaet, e.maxRegenIntervall, e.salzkostenProKg)
+  }, [angezeigte, e.tagesbedarfKapazitaet, e.maxRegenIntervall, e.salzkostenProKg])
+
+  const intervallAngezeigt = betrieb
+    ? Math.min(betrieb.intervallEffektiv, 999)
+    : Math.min(e.regenIntervallProFlasche, e.maxRegenIntervall > 0 ? e.maxRegenIntervall : Infinity)
   const ampelAngezeigt = ampelFuerIntervall(intervallAngezeigt)
+
+  // Salz & Kosten: aus der gewählten Anlage (mit Zwangsregeneration), sonst Fallback
+  const salzMonatAnz = betrieb ? betrieb.salzMonat : e.salzverbrauchMonat
+  const salzJahrAnz = betrieb ? betrieb.salzJahr : e.salzverbrauchJahr
+  const kostenJahrAnz = betrieb ? betrieb.kostenJahr : e.betriebskostenJahr
 
   return (
     <section className="mb-6 space-y-6">
@@ -176,38 +192,49 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
           <tbody>
             {angezeigte && (
               <tr>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Anlage</td>
-                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600 }}>{angezeigte.name} · Art.Nr. {angezeigte.artNr} · {kategorieLabel(angezeigte.kategorie)}</td>
+                <td style={{ ...thStyle, width: '25%' }}>Anlage</td>
+                <td colSpan={3} style={{ ...tdStyle, fontWeight: 600 }}>{angezeigte.name} · Art.Nr. {angezeigte.artNr} · {kategorieLabel(angezeigte.kategorie)}</td>
               </tr>
             )}
             <tr>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Harzmenge gesamt</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>{harzGesamt} Liter {anzFlaschen === 2 ? `(${anzFlaschen}× ${harzProEinheit} l)` : ''}</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff', width: '25%' }}>Regenerationsintervall</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', width: '25%' }}>ca. {fmt(intervallAngezeigt)} Tage</td>
+              <td style={{ ...thStyle, width: '25%' }}>Harzmenge gesamt</td>
+              <td style={{ ...tdStyle, width: '25%' }}>{harzGesamt} Liter {anzFlaschen === 2 ? `(${anzFlaschen}× ${harzProEinheit} l)` : ''}</td>
+              <td style={{ ...thStyle, width: '25%' }}>Regenerationsintervall</td>
+              <td style={{ ...tdStyle, width: '25%' }}>
+                ca. {fmt(intervallAngezeigt)} Tage{betrieb?.zwangsregeneration ? ' (Zwangsregeneration, Hygiene)' : ''}
+              </td>
             </tr>
             <tr>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Spitzenvolumenstrom V1</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.spitzenvolumenstrom, 3)} l/s ({e.v1Quelle === 'manuell' ? 'lt. Schema' : 'SVGW W3'})</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Salzverbrauch/Jahr</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>ca. {fmt(e.salzverbrauchJahr, 0)} kg ({fmt(e.betriebskostenJahr, 0)} CHF)</td>
+              <td style={thStyle}>Spitzenvolumenstrom V1</td>
+              <td style={tdStyle}>{fmt(e.spitzenvolumenstrom, 3)} l/s ({e.v1Quelle === 'manuell' ? 'lt. Schema' : 'SVGW W3'})</td>
+              {pdfZeigeSalz ? (
+                <>
+                  <td style={thStyle}>Salzverbrauch/Jahr</td>
+                  <td style={tdStyle}>ca. {fmt(salzJahrAnz, 0)} kg{pdfZeigeKosten ? ` (${fmt(kostenJahrAnz, 0)} ${e.waehrung})` : ''}</td>
+                </>
+              ) : (
+                <>
+                  <td style={thStyle}>Tagesverbrauch</td>
+                  <td style={tdStyle}>ca. {fmt(e.tagesverbrauch, 0)} l/Tag</td>
+                </>
+              )}
             </tr>
             <tr>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Verschneidung</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.weichwasserAnteil, 0)}% Weichwasser / {fmt(e.rohwasserAnteil, 0)}% Rohwasser</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Natrium nach Enthärtung</td>
-              <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{fmt(e.natriumNachEnthaertung)} mg/l (Grenzwert 200 mg/l)</td>
+              <td style={thStyle}>Verschneidung</td>
+              <td style={tdStyle}>{fmt(e.weichwasserAnteil, 0)}% Weichwasser / {fmt(e.rohwasserAnteil, 0)}% Rohwasser</td>
+              <td style={thStyle}>Natrium nach Enthärtung</td>
+              <td style={tdStyle}>{fmt(e.natriumNachEnthaertung)} mg/l (Grenzwert 200 mg/l)</td>
             </tr>
             {flussCheck && angezeigte && (
               <tr>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Durchfluss pro Kopf ({kopfgroesse(angezeigte.kategorie)})</td>
-                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenndurchfluss {flussCheck.nennProKopfLMin.toFixed(1)} / max. {flussCheck.maxProKopfLMin.toFixed(1)} l/min)</td>
+                <td style={thStyle}>Durchfluss pro Kopf ({kopfgroesse(angezeigte.kategorie)})</td>
+                <td colSpan={3} style={tdStyle}>{flussCheck.flussProjKopfLMin.toFixed(1)} l/min (Nenndurchfluss {flussCheck.nennProKopfLMin.toFixed(1)} / max. {flussCheck.maxProKopfLMin.toFixed(1)} l/min)</td>
               </tr>
             )}
             {e.anschluss && angezeigte && (
               <tr>
-                <td style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1', fontWeight: 600, background: '#f0f9ff' }}>Anschluss / Verteiler</td>
-                <td colSpan={3} style={{ padding: '3pt 6pt', border: '1px solid #cbd5e1' }}>{anschlussText(e.anschluss, angezeigte)}</td>
+                <td style={thStyle}>Anschluss / Verteiler</td>
+                <td colSpan={3} style={tdStyle}>{anschlussText(e.anschluss, angezeigte)}</td>
               </tr>
             )}
           </tbody>
@@ -429,6 +456,12 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
             </div>
           </div>
         </div>
+        {betrieb?.zwangsregeneration && (
+          <p className="mt-3 rounded-lg bg-sky-50/70 border border-sky-200/70 px-3 py-2 text-xs text-slate-600">
+            Zwangsregeneration nach {fmt(e.maxRegenIntervall, 1)} Tagen (Trinkwasser-Hygiene) – die Kapazität der Anlage
+            würde rechnerisch ca. {fmt(Math.min(betrieb.intervallNatuerlich, 999))} Tage reichen.
+          </p>
+        )}
       </div>
 
       {/* Betriebsdaten */}
@@ -437,8 +470,18 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Tagesverbrauch gesamt" value={fmt(e.tagesverbrauch, 0)} unit="Liter" />
           <StatCard label="Davon durch Enthärter" value={`${fmt(e.durchEnthaerter, 0)} (${fmt(e.verschneidungProzent, 0)}%)`} unit="Liter" />
-          <StatCard label="Salzverbrauch" value={`${fmt(e.salzverbrauchMonat)} / ${fmt(e.salzverbrauchJahr, 0)}`} unit="kg/Mt / kg/J" />
-          <StatCard label="Betriebskosten (Salz)" value={fmt(e.betriebskostenJahr, 0)} unit="CHF/Jahr" />
+          <StatCard
+            label="Salzverbrauch"
+            value={`${fmt(salzMonatAnz)} / ${fmt(salzJahrAnz, 0)}`}
+            unit="kg/Mt / kg/J"
+            className={pdfZeigeSalz ? '' : 'no-print'}
+          />
+          <StatCard
+            label="Betriebskosten (Salz)"
+            value={fmt(kostenJahrAnz, 0)}
+            unit={`${e.waehrung}/Jahr`}
+            className={pdfZeigeKosten ? '' : 'no-print'}
+          />
         </div>
       </div>
 
@@ -509,8 +552,14 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
             `Spitzenvolumenstrom V1: ${fmt(e.spitzenvolumenstrom, 3)} l/s (${v1Label}).`,
             `Harzvolumen: ${harzInfo}.`,
             `Regenerationsintervall: ca. ${fmt(intervallAngezeigt)} Tage.`,
-            `Salzverbrauch: ca. ${fmt(e.salzverbrauchMonat)} kg/Monat (${fmt(e.salzverbrauchJahr, 0)} kg/Jahr).`,
           ]
+          if (betrieb?.zwangsregeneration) {
+            kundenZeilen.push(`Zwangsregeneration alle ${fmt(e.maxRegenIntervall, 1)} Tage gemäss Trinkwasser-Hygienepraxis (SVGW/ÖNORM/DIN 19636-100).`)
+          }
+          const salzZeile = `Salzverbrauch: ca. ${fmt(salzMonatAnz)} kg/Monat (${fmt(salzJahrAnz, 0)} kg/Jahr).`
+          const screenOnlyZeilen: string[] = []
+          if (pdfZeigeSalz) kundenZeilen.push(salzZeile)
+          else screenOnlyZeilen.push(salzZeile)
           const anschlInfo = a ? anschlussText(e.anschluss, a) : null
           if (anschlInfo) kundenZeilen.push(anschlInfo)
 
@@ -533,6 +582,11 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride }: Props) {
                 <pre className="whitespace-pre-wrap text-sm leading-relaxed text-brand-800 font-sans">
                   {kundenZeilen.join('\n')}
                 </pre>
+                {screenOnlyZeilen.length > 0 && (
+                  <pre className="no-print whitespace-pre-wrap text-sm leading-relaxed text-brand-800/70 font-sans">
+                    {screenOnlyZeilen.join('\n')} (im PDF ausgeblendet)
+                  </pre>
+                )}
               </div>
               {interneZeilen.length > 0 && (
                 <div className="no-print mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4">

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { berechne, type Eingaben, type AnlagenTyp, type Anlage } from './calc'
+import { berechne, dhToFh, fhToDh, type Eingaben, type AnlagenTyp, type Anlage, type HaerteEinheit } from './calc'
 import { Header } from '../../shared/Header'
 import { ProjectInputs } from './components/ProjectInputs'
 import { AnlagenTypSelector } from './components/AnlagenTypSelector'
@@ -13,6 +13,7 @@ const DEFAULTS: Eingaben = {
   bearbeiter: '',
   rohwasserhaerte: 25,
   resthaerte: 5,
+  haerteEinheit: 'dH',
   personen: 4,
   bwLu: 11.76,
   bwAuto: true,
@@ -23,8 +24,10 @@ const DEFAULTS: Eingaben = {
   verbrauchProPerson: 150,
   regenIntervallTage: 3,
   reserveTage: 1,
+  maxRegenIntervall: 4,
   natriumRohwasser: 5,
   salzkosten: 0.60,
+  waehrung: 'CHF',
   volumenstromApparat: 0.70,
   druckverlustApparat: 1.00,
   bwProPerson: 2.94,
@@ -48,6 +51,12 @@ export default function RechnerApp() {
       if (key === 'bwLu') {
         next.bwAuto = false
       }
+      // Einheiten-Wechsel: Härtewerte umrechnen, damit der physikalische Wert bleibt
+      if (key === 'haerteEinheit' && value !== prev.haerteEinheit) {
+        const conv = (value as HaerteEinheit) === 'fH' ? dhToFh : fhToDh
+        next.rohwasserhaerte = Math.round(conv(prev.rohwasserhaerte) * 10) / 10
+        next.resthaerte = Math.round(conv(prev.resthaerte) * 10) / 10
+      }
       return next
     })
   }, [])
@@ -68,6 +77,10 @@ export default function RechnerApp() {
   const angezeigteAnlage = anlagenOverride ?? ergebnisse.empfohleneAnlage
   const effektiverTyp = angezeigteAnlage?.betriebsart ?? eingaben.anlagentyp
 
+  // PDF-Optionen
+  const [pdfZeigeSalz, setPdfZeigeSalz] = useState(true)
+  const [pdfZeigeKosten, setPdfZeigeKosten] = useState(false)
+
   return (
     <>
       {/* Print Header – nur im Druck sichtbar */}
@@ -75,15 +88,16 @@ export default function RechnerApp() {
         <div>
           <h1>{eingaben.projektname || 'Anlagenauslegung Wasserenthärtung'}</h1>
           <p className="print-sub">
-            Auslegung Wasserenthärtung · Bearbeiter: {eingaben.bearbeiter || '–'} · Anlagentyp: {
+            Technische Auslegung Wasserenthärtung · Bearbeiter: {eingaben.bearbeiter || '–'} · Anlagentyp: {
               effektiverTyp === 'simplex' ? 'Simplex' :
               effektiverTyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
-            } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °dH → Resthärte {eingaben.resthaerte} °dH
+            } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °{eingaben.haerteEinheit} → Resthärte {eingaben.resthaerte} °{eingaben.haerteEinheit}
             {eingaben.anschluss && <> · Anschluss bauseits: {eingaben.anschluss}</>}
           </p>
         </div>
         <div className="print-meta">
-          <p className="print-logo">pH-Optima</p>
+          <p className="print-logo">AWT</p>
+          <p>Anlagenauslegung Wasserenthärtung</p>
           <p>{new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
         </div>
       </div>
@@ -177,16 +191,47 @@ export default function RechnerApp() {
 
         <AdvancedSettings eingaben={eingaben} update={update} />
 
-        <ResultsPanel ergebnisse={ergebnisse} override={anlagenOverride} setOverride={setAnlagenOverride} />
+        <ResultsPanel
+          ergebnisse={ergebnisse}
+          override={anlagenOverride}
+          setOverride={setAnlagenOverride}
+          pdfZeigeSalz={pdfZeigeSalz}
+          pdfZeigeKosten={pdfZeigeKosten}
+        />
 
         <UnitConverter />
+
+        {/* PDF-Optionen */}
+        <div className="no-print mb-4">
+          <div className="card-glass rounded-2xl p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <span className="text-sm font-semibold text-slate-700">PDF-Optionen</span>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pdfZeigeSalz}
+                onChange={e => setPdfZeigeSalz(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-400"
+              />
+              Salzverbrauch im PDF
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pdfZeigeKosten}
+                onChange={e => setPdfZeigeKosten(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-400"
+              />
+              Salzkosten im PDF
+            </label>
+          </div>
+        </div>
 
         <PrintButton />
       </main>
 
       {/* Print Footer – nur im Druck sichtbar */}
       <div className="print-footer print-only hidden">
-        pH-Optima · Anlagenauslegung Wasserenthärtung · Erstellt am {new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · Alle Angaben ohne Gewähr
+        AWT · Anlagenauslegung Wasserenthärtung · Erstellt am {new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · Alle Angaben ohne Gewähr
       </div>
     </>
   )

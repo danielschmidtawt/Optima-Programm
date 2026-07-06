@@ -6,11 +6,15 @@ export type AnlagenTyp = 'simplex' | 'duplex' | 'parallel'
 
 export type AnschlussGroesse = '' | '1"' | '5/4"' | '1½"' | '2"'
 
+export type HaerteEinheit = 'dH' | 'fH'
+export type Waehrung = 'CHF' | 'EUR'
+
 export interface Eingaben {
   projektname: string
   bearbeiter: string
-  rohwasserhaerte: number   // °dH
-  resthaerte: number        // °dH
+  rohwasserhaerte: number   // in gewählter Härte-Einheit
+  resthaerte: number        // in gewählter Härte-Einheit
+  haerteEinheit: HaerteEinheit
   personen: number
   bwLu: number              // Belastungswerte
   bwAuto: boolean
@@ -20,10 +24,12 @@ export interface Eingaben {
   v1Manuell: number         // l/s – nur bei v1Auto = false
   // Erweiterte Einstellungen
   verbrauchProPerson: number  // l/Tag
-  regenIntervallTage: number  // Tage
+  regenIntervallTage: number  // Tage (Auslegungsintervall)
   reserveTage: number         // Tage Kapazitätsreserve (Anlage regeneriert vor Erschöpfung)
+  maxRegenIntervall: number   // Tage Zwangsregeneration (0 = keine); Trinkwasser-Hygiene
   natriumRohwasser: number    // mg/l
-  salzkosten: number          // CHF/kg
+  salzkosten: number          // pro kg, in gewählter Währung
+  waehrung: Waehrung
   volumenstromApparat: number // l/s (VA)
   druckverlustApparat: number // bar (ΔpA)
   bwProPerson: number         // BW pro Person Richtwert
@@ -193,6 +199,48 @@ export function ampelFuerIntervall(tage: number): 'gruen' | 'gelb' | 'rot' {
   return 'rot'
 }
 
+// Zwangsregeneration Trinkwasser (Hygiene): In CH (SVGW-Praxis, EN 14743),
+// AT (ÖNORM/ÖVGW-Praxis) und DE (DIN 19636-100) gilt als Richtwert:
+// Enthärtungsanlagen im Trinkwasser spätestens alle 4 Tage regenerieren.
+export const ZWANGSREGENERATION_TAGE = 4
+
+// Betriebsdaten der KONKRET gewählten Anlage inkl. Zwangsregeneration:
+// Ist die Kapazität grösser als das erlaubte Intervall, regeneriert die Anlage
+// zwangsweise früher – mit voller Besalzung. Grössere Anlagen verbrauchen dann
+// MEHR Salz, weil das Harz nicht ausgenutzt wird.
+export interface AnlagenBetrieb {
+  intervallNatuerlich: number  // Tage – Kapazität / Tagesbedarf
+  intervallEffektiv: number    // Tage – min(natürlich, Zwangsregeneration)
+  zwangsregeneration: boolean  // true = Zwangsregeneration greift vor Erschöpfung
+  regenProMonat: number
+  salzProRegen: number         // kg
+  salzMonat: number            // kg
+  salzJahr: number             // kg
+  kostenJahr: number           // in gewählter Währung
+}
+
+export function betriebFuerAnlage(
+  anlage: Anlage,
+  tagesbedarfKapazitaet: number,
+  maxIntervall: number,
+  salzkostenProKg: number,
+): AnlagenBetrieb {
+  const intervallNatuerlich = intervallFuerAnlage(anlage, tagesbedarfKapazitaet)
+  const max = maxIntervall > 0 ? maxIntervall : Infinity
+  const intervallEffektiv = Math.min(intervallNatuerlich, max)
+  const zwangsregeneration = intervallNatuerlich > max
+  const regenProMonat = isFinite(intervallEffektiv) && intervallEffektiv > 0
+    ? 30 / intervallEffektiv
+    : 0
+  // Salz pro Regeneration: Simplex = Gesamtharz, Duplex = 1 Flasche (Katalogwert),
+  // Parallel = beide Tanks (Katalogwert = Gesamt) – anlage.harz passt in allen Fällen.
+  const salzProRegen = anlage.harz * SALZ_PRO_LITER_HARZ
+  const salzMonat = regenProMonat * salzProRegen
+  const salzJahr = salzMonat * 12
+  const kostenJahr = salzJahr * salzkostenProKg
+  return { intervallNatuerlich, intervallEffektiv, zwangsregeneration, regenProMonat, salzProRegen, salzMonat, salzJahr, kostenJahr }
+}
+
 // Anlagenempfehlung: passende Anlage aus Katalog finden
 function findePassendeAnlage(
   anlagentyp: AnlagenTyp,
@@ -249,6 +297,11 @@ export interface Ergebnisse {
   // Anschluss / Parallelverteiler
   anschluss: AnschlussGroesse
   plausiCheck1: string | null
+  // Einstellungen (Passthrough für Anzeige & anlagenbezogene Neuberechnung)
+  haerteEinheit: HaerteEinheit
+  waehrung: Waehrung
+  maxRegenIntervall: number
+  salzkostenProKg: number
   // Anlagenvorschlag aus Produktkatalog
   empfohleneAnlage: Anlage | null
   alternativeAnlagen: Anlage[]
@@ -268,21 +321,25 @@ export const HARZ_KAPAZITAET = 5.0 // °dH·m³/l Harz
 // Natriumzunahme pro °dH Enthärtung: ca. 8.2 mg/l Na+ pro °dH (Stöchiometrie Ionentausch)
 const NATRIUM_PRO_DH = 8.2
 
-// Salzverbrauch pro Liter Harz bei Regeneration: ca. 0.15 kg NaCl (Bereich 80–160 g/l)
-const SALZ_PRO_LITER_HARZ = 0.15
+// Salzverbrauch pro Liter Harz bei Regeneration: ca. 0.15 kg NaCl (Vollbesalzung)
+export const SALZ_PRO_LITER_HARZ = 0.15
 
 // Schwelle für Duplex-Empfehlung: ab >20 Personen
 const DUPLEX_EMPFEHLUNG_PERSONEN = 20
 
 export function berechne(e: Eingaben): Ergebnisse {
+  // Härte intern immer in °dH rechnen (Eingabe wahlweise °dH oder °fH)
+  const rohwasserhaerte = e.haerteEinheit === 'fH' ? fhToDh(e.rohwasserhaerte) : e.rohwasserhaerte
+  const resthaerte = e.haerteEinheit === 'fH' ? fhToDh(e.resthaerte) : e.resthaerte
+
   // Grunddaten
   const tagesverbrauch = e.personen * e.verbrauchProPerson // Liter/Tag
 
   // Verschneidung: Anteil Weichwasser (0°dH nach Austauscher) und Rohwasser
   // Resthärte = rohwasserAnteil × rohwasserhärte + weichwasserAnteil × 0
   // → weichwasserAnteil = 1 - (resthaerte / rohwasserhaerte)
-  const weichwasserAnteil = e.rohwasserhaerte > 0
-    ? Math.max(0, Math.min(1, 1 - e.resthaerte / e.rohwasserhaerte))
+  const weichwasserAnteil = rohwasserhaerte > 0
+    ? Math.max(0, Math.min(1, 1 - resthaerte / rohwasserhaerte))
     : 0
   const rohwasserAnteil = 1 - weichwasserAnteil
 
@@ -320,7 +377,7 @@ export function berechne(e: Eingaben): Ergebnisse {
   // die Restkapazität muss den laufenden Tag noch abdecken (Standard: +1 Tag).
   const zyklusTage = e.regenIntervallTage + Math.max(0, e.reserveTage)
   const durchEnthaerterProZyklus = durchEnthaerter * zyklusTage // Liter
-  const benoetigteKapazitaet = (durchEnthaerterProZyklus / 1000) * e.rohwasserhaerte // °dH·m³
+  const benoetigteKapazitaet = (durchEnthaerterProZyklus / 1000) * rohwasserhaerte // °dH·m³
 
   // Harzvolumen für einen vollen Zyklus
   const harzFuerEinenZyklus = benoetigteKapazitaet / HARZ_KAPAZITAET // Liter
@@ -350,7 +407,7 @@ export function berechne(e: Eingaben): Ergebnisse {
 
   // ── Regenerationsintervall ─────────────────────────────────────────────────
   const kapazitaetProFlasche = harzmengeProFlasche * HARZ_KAPAZITAET // °dH·m³
-  const tagesbedarf = (durchEnthaerter / 1000) * e.rohwasserhaerte // °dH·m³ pro Tag
+  const tagesbedarf = (durchEnthaerter / 1000) * rohwasserhaerte // °dH·m³ pro Tag
 
   // Simplex & Parallel: gesamte Kapazität nimmt den vollen Tagesbedarf auf
   // Duplex: jeweils 1 Flasche nimmt den vollen Tagesbedarf auf (andere in Standby)
@@ -380,8 +437,11 @@ export function berechne(e: Eingaben): Ergebnisse {
   // Simplex: 1 Flasche regeneriert alle <interval> Tage → 30/interval
   // Duplex:  Flaschen alternieren, System regeneriert 1 Flasche pro Intervall → 30/interval
   // Parallel: Beide Tanks gleichzeitig → Gesamtharz pro Regeneration
-  const regenProMonat = regenIntervallProFlasche > 0
-    ? 30 / regenIntervallProFlasche
+  // Zwangsregeneration kappt das Intervall (Trinkwasser-Hygiene)
+  const maxIntervall = e.maxRegenIntervall > 0 ? e.maxRegenIntervall : Infinity
+  const intervallFuerSalz = Math.min(regenIntervallProFlasche, maxIntervall)
+  const regenProMonat = intervallFuerSalz > 0 && isFinite(intervallFuerSalz)
+    ? 30 / intervallFuerSalz
     : 0
   // Bei Parallel wird die gesamte Harzmenge regeneriert (beide Tanks)
   const salzProRegen = (e.anlagentyp === 'parallel' ? harzmengeGesamt : harzmengeProFlasche) * SALZ_PRO_LITER_HARZ // kg
@@ -390,7 +450,7 @@ export function berechne(e: Eingaben): Ergebnisse {
   const betriebskostenJahr = salzverbrauchJahr * e.salzkosten
 
   // ── Natrium (Sicherheit, Grenzwert 200 mg/l gemäss TBDV/WHO) ──────────────
-  const natriumImWeichwasser = e.natriumRohwasser + e.rohwasserhaerte * NATRIUM_PRO_DH
+  const natriumImWeichwasser = e.natriumRohwasser + rohwasserhaerte * NATRIUM_PRO_DH
   // Nach Verschneidung
   const natriumNachEnthaertung = natriumImWeichwasser * weichwasserAnteil
     + e.natriumRohwasser * rohwasserAnteil
@@ -457,6 +517,10 @@ export function berechne(e: Eingaben): Ergebnisse {
     druckverlust,
     anschluss: e.anschluss,
     plausiCheck1,
+    haerteEinheit: e.haerteEinheit,
+    waehrung: e.waehrung,
+    maxRegenIntervall: e.maxRegenIntervall,
+    salzkostenProKg: e.salzkosten,
     harzmengeGesamt: Math.max(0, harzmengeGesamt),
     harzmengeProFlasche: Math.max(0, harzmengeProFlasche),
     anzahlFlaschen,

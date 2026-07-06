@@ -25,10 +25,34 @@ const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all'
 
 export function ProjectInputs({ eingaben, update }: Props) {
+  const einheit = eingaben.haerteEinheit
   return (
     <section className="no-print mb-6 mt-6">
       <div className="card-glass rounded-2xl p-5 shadow-sm sm:p-6">
-        <h2 className="section-title mb-4 text-lg font-semibold text-slate-800">Projektdaten</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="section-title text-lg font-semibold text-slate-800">Projektdaten</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Härte-Einheit</span>
+            <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+              <button
+                onClick={() => update('haerteEinheit', 'dH')}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                  einheit === 'dH' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                °dH
+              </button>
+              <button
+                onClick={() => update('haerteEinheit', 'fH')}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                  einheit === 'fH' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                °fH
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Projektname / Objektbezeichnung">
             <input
@@ -51,7 +75,7 @@ export function ProjectInputs({ eingaben, update }: Props) {
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Rohwasserhärte" unit="°dH">
+          <Field label="Rohwasserhärte" unit={`°${einheit}`}>
             <input
               type="number"
               value={eingaben.rohwasserhaerte || ''}
@@ -61,7 +85,7 @@ export function ProjectInputs({ eingaben, update }: Props) {
               step={0.5}
             />
           </Field>
-          <Field label="Gewünschte Resthärte" unit="°dH">
+          <Field label="Gewünschte Resthärte" unit={`°${einheit}`}>
             <input
               type="number"
               value={eingaben.resthaerte || ''}
@@ -99,7 +123,7 @@ export function ProjectInputs({ eingaben, update }: Props) {
               Resthärte-Empfehlung
             </label>
             <div className="flex h-[42px] items-center rounded-xl border border-brand-100 bg-brand-50/50 px-4 text-sm text-brand-700">
-              5–8 °dH empfohlen
+              {einheit === 'dH' ? '5–8 °dH empfohlen' : '9–14 °fH empfohlen'}
             </div>
           </div>
         </div>

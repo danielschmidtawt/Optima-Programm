@@ -8,10 +8,13 @@ import {
   pruefeFlussProKopf,
   intervallFuerAnlage,
   ampelFuerIntervall,
+  betriebFuerAnlage,
   kopfgroesse,
+  dhToFh,
   ANLAGEN_KATALOG,
   ANSCHLUSS_MAX_DURCHFLUSS,
   HARZ_KAPAZITAET,
+  SALZ_PRO_LITER_HARZ,
   type Eingaben,
   type Anlage,
 } from './calc'
@@ -21,6 +24,7 @@ const BASIS: Eingaben = {
   bearbeiter: 'Test',
   rohwasserhaerte: 25,
   resthaerte: 5,
+  haerteEinheit: 'dH',
   personen: 4,
   bwLu: 4 * 2.94,
   bwAuto: true,
@@ -31,8 +35,10 @@ const BASIS: Eingaben = {
   verbrauchProPerson: 150,
   regenIntervallTage: 3,
   reserveTage: 1,
+  maxRegenIntervall: 4,
   natriumRohwasser: 5,
   salzkosten: 0.6,
+  waehrung: 'CHF',
   volumenstromApparat: 0.7,
   druckverlustApparat: 1.0,
   bwProPerson: 2.94,
@@ -258,6 +264,68 @@ describe('Plausi-Check 2: Durchfluss pro Kopf', () => {
     const p = pruefeFlussProKopf(0.1, 'simplex', anlage('4397')) // 6 l/min auf MFH 100
     expect(p.status).toBe('ok')
     expect(p.warnung).toBeNull()
+  })
+})
+
+describe('Härte-Einheiten (°dH / °fH)', () => {
+  it('°fH-Eingabe liefert identische Ergebnisse wie °dH (25 °dH = 44.62 °fH)', () => {
+    const dh = berechne(BASIS)
+    const fh = berechne({
+      ...BASIS,
+      haerteEinheit: 'fH',
+      rohwasserhaerte: dhToFh(25),
+      resthaerte: dhToFh(5),
+    })
+    expect(fh.weichwasserAnteil).toBeCloseTo(dh.weichwasserAnteil, 5)
+    expect(fh.harzmengeProFlasche).toBeCloseTo(dh.harzmengeProFlasche, 5)
+    expect(fh.natriumNachEnthaertung).toBeCloseTo(dh.natriumNachEnthaertung, 5)
+    expect(fh.salzverbrauchMonat).toBeCloseTo(dh.salzverbrauchMonat, 5)
+    expect(fh.empfohleneAnlage?.artNr).toBe(dh.empfohleneAnlage?.artNr)
+  })
+
+  it('Einheit wird durchgereicht für die Anzeige', () => {
+    expect(berechne(BASIS).haerteEinheit).toBe('dH')
+    expect(berechne({ ...BASIS, haerteEinheit: 'fH' }).haerteEinheit).toBe('fH')
+  })
+})
+
+describe('Zwangsregeneration (Trinkwasser-Hygiene)', () => {
+  it('kappt das Intervall der gewählten Anlage: Twin 15 (6.25 Tage Kapazität) → 4 Tage', () => {
+    const b = betriebFuerAnlage(anlage('4398'), 12, 4, 0.6)
+    expect(b.intervallNatuerlich).toBeCloseTo(6.25, 3)
+    expect(b.intervallEffektiv).toBe(4)
+    expect(b.zwangsregeneration).toBe(true)
+  })
+
+  it('GRÖSSERE Anlage mit Zwangsregeneration verbraucht MEHR Salz (Vollbesalzung öfter als nötig)', () => {
+    const b15 = betriebFuerAnlage(anlage('4398'), 12, 4, 0.6) // Twin 15
+    const b50 = betriebFuerAnlage(anlage('4402'), 12, 4, 0.6) // Twin 50
+    // Beide zwangsregenerieren alle 4 Tage → 7.5 Regen/Monat × Harz × 0.15
+    expect(b15.salzMonat).toBeCloseTo(7.5 * 15 * SALZ_PRO_LITER_HARZ, 4) // 16.875 kg
+    expect(b50.salzMonat).toBeCloseTo(7.5 * 50 * SALZ_PRO_LITER_HARZ, 4) // 56.25 kg
+    expect(b50.salzMonat).toBeGreaterThan(b15.salzMonat)
+    expect(b50.kostenJahr).toBeCloseTo(b50.salzJahr * 0.6, 4)
+  })
+
+  it('ohne Zwangsregeneration (0 = aus) gilt das natürliche Intervall', () => {
+    const b = betriebFuerAnlage(anlage('4398'), 12, 0, 0.6)
+    expect(b.intervallEffektiv).toBeCloseTo(6.25, 3)
+    expect(b.zwangsregeneration).toBe(false)
+    expect(b.salzMonat).toBeCloseTo((30 / 6.25) * 15 * SALZ_PRO_LITER_HARZ, 4) // 10.8 kg
+  })
+
+  it('berechne() kappt auch den Fallback-Salzverbrauch am Zwangsintervall', () => {
+    // Auslegung 10+1 = 11 Tage natürlich, Zwang 4 → Salz auf 4-Tage-Basis
+    const r = berechne({ ...BASIS, regenIntervallTage: 10 })
+    expect(r.regenIntervallProFlasche).toBeCloseTo(11, 3)
+    expect(r.salzverbrauchMonat).toBeCloseTo((30 / 4) * r.harzmengeProFlasche * SALZ_PRO_LITER_HARZ, 3)
+  })
+
+  it('Währung und Zwangsintervall werden durchgereicht', () => {
+    const r = berechne({ ...BASIS, waehrung: 'EUR', maxRegenIntervall: 3 })
+    expect(r.waehrung).toBe('EUR')
+    expect(r.maxRegenIntervall).toBe(3)
+    expect(r.salzkostenProKg).toBe(0.6)
   })
 })
 

@@ -58,15 +58,29 @@ export function AdvancedSettings({ eingaben, update }: Props) {
               <Row label="Wasserverbrauch pro Person" unit="l/Tag" value={eingaben.verbrauchProPerson} onChange={v => update('verbrauchProPerson', v)} step={10} />
               <Row label="Regenerationsintervall" unit="Tage" value={eingaben.regenIntervallTage} onChange={v => update('regenIntervallTage', v)} step={0.5} />
               <Row label="Kapazitätsreserve (Tagesreserve)" unit="Tage" value={eingaben.reserveTage} onChange={v => update('reserveTage', v)} step={0.5} />
+              <Row label="Zwangsregeneration (max. Intervall)" unit="Tage" value={eingaben.maxRegenIntervall} onChange={v => update('maxRegenIntervall', v)} step={0.5} />
               <Row label="Natriumgehalt Rohwasser" unit="mg/l" value={eingaben.natriumRohwasser} onChange={v => update('natriumRohwasser', v)} step={1} />
-              <Row label="Salzkosten" unit="CHF/kg" value={eingaben.salzkosten} onChange={v => update('salzkosten', v)} step={0.05} />
+              <Row label="Salzkosten" unit={`${eingaben.waehrung}/kg`} value={eingaben.salzkosten} onChange={v => update('salzkosten', v)} step={0.05} />
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm text-slate-600 flex-1">Währung</label>
+                <select
+                  value={eingaben.waehrung}
+                  onChange={e => update('waehrung', e.target.value as Eingaben['waehrung'])}
+                  className="w-32 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none transition-all"
+                >
+                  <option value="CHF">CHF</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
               <Row label="Volumenstrom Apparat (VA)" unit="l/s" value={eingaben.volumenstromApparat} onChange={v => update('volumenstromApparat', v)} step={0.05} />
               <Row label="Druckverlust Apparat (ΔpA)" unit="bar" value={eingaben.druckverlustApparat} onChange={v => update('druckverlustApparat', v)} step={0.1} />
               <Row label="BW pro Person Richtwert" unit="BW" value={eingaben.bwProPerson} onChange={v => update('bwProPerson', v)} step={0.01} />
             </div>
             <p className="mt-3 text-xs text-slate-400">
-              EN 14743: max. 4 Tage Regenerationsintervall. CH-Durchschnitt: 150 l/Person/Tag.
+              Zwangsregeneration (Trinkwasser-Hygiene): In CH (SVGW-Praxis, EN 14743), AT (ÖNORM/ÖVGW-Praxis) und DE (DIN 19636-100)
+              gilt als Richtwert: spätestens alle 4 Tage regenerieren. 0 = keine Zwangsregeneration.
               Tagesreserve: Kapazitätspuffer, da mengengesteuerte Anlagen vor der Erschöpfung regenerieren (Standard: 1 Tag).
+              CH-Durchschnitt Wasserverbrauch: 150 l/Person/Tag.
             </p>
           </div>
         </div>

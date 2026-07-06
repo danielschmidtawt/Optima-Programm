@@ -85,9 +85,24 @@ input[type="number"] {
     color: #1e293b !important;
   }
 
-  /* Design-Akzente im Druck neutralisieren */
+  /* ── AWT-Druckdesign: dezent, technisch, monochrom mit Slate-Akzent ── */
   .section-title::before { display: none !important; }
   .card-glass { box-shadow: none !important; }
+
+  /* Sektions-Titel: technisch, dezent */
+  h2 {
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    color: #334155 !important;
+  }
+
+  /* Brand-Farben neutralisieren */
+  .text-brand-800, .text-brand-700 { color: #0f172a !important; }
+  .text-brand-600, .text-brand-500 { color: #475569 !important; }
+  .bg-brand-50, .bg-gradient-to-br { background: #f8fafc !important; }
+  .border-brand-200, .border-brand-300, [class*="border-brand"] { border-color: #cbd5e1 !important; }
+  .ring-4, [class*="ring-brand"] { box-shadow: none !important; }
+  .shadow-sm, .shadow-md { box-shadow: none !important; }
 
   /* Bedienelemente ausblenden */
   .no-print { display: none !important; }
@@ -186,9 +201,9 @@ input[type="number"] {
   /* ── Anlagenvorschlag-Karte im Druck ───────────────────── */
   .border-2 { border-width: 1.5px !important; }
 
-  /* Empfohlen-Badge */
+  /* Badges dezent */
   .rounded-full.bg-brand-500 {
-    background-color: #0ea5e9 !important;
+    background-color: #475569 !important;
     font-size: 7pt !important;
     padding: 2pt 6pt !important;
   }
@@ -206,7 +221,7 @@ input[type="number"] {
     background-color: #e2e8f0 !important;
   }
   .bg-gradient-to-r {
-    background: #0ea5e9 !important;
+    background: #475569 !important;
   }
 
   /* ── Ampel-Punkt ───────────────────────────────────────── */
@@ -225,7 +240,7 @@ input[type="number"] {
     align-items: center;
     justify-content: space-between;
     padding: 10mm 12mm 6mm 12mm;
-    border-bottom: 2px solid #0ea5e9;
+    border-bottom: 1.5px solid #334155;
     margin-bottom: 6mm;
   }
 
@@ -256,10 +271,10 @@ input[type="number"] {
   }
 
   .print-header .print-logo {
-    font-size: 9pt !important;
-    font-weight: 600;
-    color: #0ea5e9 !important;
-    letter-spacing: -0.3px;
+    font-size: 13pt !important;
+    font-weight: 700;
+    color: #334155 !important;
+    letter-spacing: 2px;
   }
 
   /* ── Fusszeile ─────────────────────────────────────────── */
