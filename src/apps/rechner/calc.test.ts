@@ -286,6 +286,30 @@ describe('Katalog-Konsistenz', () => {
     }
   })
 
+  it('Durchflüsse respektieren Geschwindigkeits- UND Kontaktzeitgrenze (pro Tank)', () => {
+    // Grenze 1: Filtergeschwindigkeit 20/40 m/h; Grenze 2: 33.2/66.4 BV/h
+    for (const a of ANLAGEN_KATALOG) {
+      const tanks = a.betriebsart === 'parallel' ? 2 : 1
+      const nennProTank = a.durchflussNormal / tanks
+      const spitzeProTank = a.durchflussSpitze / tanks
+      const harzProTank = a.harzProTank ?? a.harz
+      // Geschwindigkeit in m/h: (l/min × 60) / (dm² × 10)
+      expect(nennProTank * 6 / a.querschnitt).toBeLessThanOrEqual(20.1)
+      expect(spitzeProTank * 6 / a.querschnitt).toBeLessThanOrEqual(40.2)
+      // Spezifische Belastung in BV/h: (l/min × 60) / Harzliter
+      expect(nennProTank * 60 / harzProTank).toBeLessThanOrEqual(33.3)
+      expect(spitzeProTank * 60 / harzProTank).toBeLessThanOrEqual(66.5)
+    }
+  })
+
+  it('MFH 30 (flaches Bett, kontaktzeitbegrenzt) < MFH 50 im Durchfluss – MFH 40/50 gleich (geschwindigkeitsbegrenzt, gleicher Ø)', () => {
+    const p30 = ANLAGEN_KATALOG.find(a => a.artNr === '4428')! // MFH 30/2x
+    const p40 = ANLAGEN_KATALOG.find(a => a.artNr === '4429')! // MFH 40/2x
+    const p50 = ANLAGEN_KATALOG.find(a => a.artNr === '4430')! // MFH 50/2x
+    expect(p30.durchflussSpitze).toBeLessThan(p50.durchflussSpitze)
+    expect(p40.durchflussSpitze).toBe(p50.durchflussSpitze)
+  })
+
   it('Harzkapazität-Konstante im plausiblen Normbereich (4.5–5.5)', () => {
     expect(HARZ_KAPAZITAET).toBeGreaterThanOrEqual(4.5)
     expect(HARZ_KAPAZITAET).toBeLessThanOrEqual(5.5)

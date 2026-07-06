@@ -52,6 +52,11 @@ export interface Anlage {
   ventilBegrenztSpitze?: boolean
 }
 
+// Durchfluss-Bemessung: Minimum aus zwei Grenzen
+//  1. Filtergeschwindigkeit: 20 m/h Nenn / 40 m/h Spitze × Querschnitt
+//  2. Kontaktzeit (spezifische Belastung): 33.2 BV/h Nenn / 66.4 BV/h Spitze × Harzvolumen
+// Gleicher Tankdurchmesser = gleiche Geschwindigkeitsgrenze; flache Betten
+// (Betthöhe < 6.7 dm) werden zusätzlich durch die Kontaktzeit begrenzt (z.B. MFH 30).
 export const ANLAGEN_KATALOG: Anlage[] = [
   // === EINZELANLAGE CLACK 1" ===
   { name: 'pH-Optima MFH 15/WS1-CK',          artNr: '4388', harz: 15,  tank: '735',    zoll: 7,  querschnitt: 2.483,  harzhoehe: 6.0,  durchflussNormal: 8.3,   durchflussSpitze: 16.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
@@ -59,7 +64,7 @@ export const ANLAGEN_KATALOG: Anlage[] = [
   { name: 'pH-Optima MFH 20/WS1-CK',          artNr: '4390', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 20/WS1-CK Kabinett',  artNr: '4391', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 25/WS1-CK',          artNr: '4392', harz: 25,  tank: '935',    zoll: 9,  querschnitt: 4.104,  harzhoehe: 6.1,  durchflussNormal: 13.7,  durchflussSpitze: 27.4,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 30/WS1-CK',          artNr: '4393', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'einzel_1', betriebsart: 'simplex' },
+  { name: 'pH-Optima MFH 30/WS1-CK',          artNr: '4393', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'einzel_1', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 40/WS1-CK',          artNr: '4394', harz: 40,  tank: '1044',   zoll: 10, querschnitt: 5.067,  harzhoehe: 7.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'einzel_1', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 50/WS1-CK',          artNr: '4395', harz: 50,  tank: '1054',   zoll: 10, querschnitt: 5.067,  harzhoehe: 9.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'einzel_1', betriebsart: 'simplex' },
   { name: 'pH-Optima MFH 75/WS1-CK',          artNr: '4396', harz: 75,  tank: '1354',   zoll: 13, querschnitt: 8.563,  harzhoehe: 8.8,  durchflussNormal: 28.5,  durchflussSpitze: 57.1,   kategorie: 'einzel_1', betriebsart: 'simplex' },
@@ -67,7 +72,7 @@ export const ANLAGEN_KATALOG: Anlage[] = [
   // === PENDEL TWIN CLACK 1" ===
   { name: 'pH-Optima MFH 15/Twin-WS1-CK',     artNr: '4398', harz: 15,  tank: '735',    zoll: 7,  querschnitt: 2.483,  harzhoehe: 6.0,  durchflussNormal: 8.3,   durchflussSpitze: 16.6,   kategorie: 'twin_1',   betriebsart: 'duplex' },
   { name: 'pH-Optima MFH 20/Twin-WS1-CK',     artNr: '4399', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 30/Twin-WS1-CK',     artNr: '4400', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
+  { name: 'pH-Optima MFH 30/Twin-WS1-CK',     artNr: '4400', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'twin_1',   betriebsart: 'duplex' },
   { name: 'pH-Optima MFH 40/Twin-WS1-CK',     artNr: '4401', harz: 40,  tank: '1044',   zoll: 10, querschnitt: 5.067,  harzhoehe: 7.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
   { name: 'pH-Optima MFH 50/Twin-WS1-CK',     artNr: '4402', harz: 50,  tank: '1054',   zoll: 10, querschnitt: 5.067,  harzhoehe: 9.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
   { name: 'pH-Optima MFH 75/Twin-WS1-CK',     artNr: '4403', harz: 75,  tank: '1354',   zoll: 10, querschnitt: 5.067,  harzhoehe: 14.8, durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
@@ -77,7 +82,7 @@ export const ANLAGEN_KATALOG: Anlage[] = [
   { name: 'pH-Optima MFH 15/2xWS1-CK',      artNr: '4425', harz: 30,  tank: '735',  zoll: 7,  querschnitt: 2.483, harzhoehe: 6.0,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 15,  querschnittGesamt: 4.966,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
   { name: 'pH-Optima MFH 20/2xWS1-CK',      artNr: '4426', harz: 40,  tank: '835',  zoll: 8,  querschnitt: 3.243, harzhoehe: 6.2,  durchflussNormal: 21.6,  durchflussSpitze: 43.2,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 20,  querschnittGesamt: 6.486,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
   { name: 'pH-Optima MFH 25/2xWS1-CK',      artNr: '4427', harz: 50,  tank: '935',  zoll: 9,  querschnitt: 4.104, harzhoehe: 6.1,  durchflussNormal: 27.4,  durchflussSpitze: 54.8,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 25,  querschnittGesamt: 8.208,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 30/2xWS1-CK',      artNr: '4428', harz: 60,  tank: '1035', zoll: 10, querschnitt: 5.067, harzhoehe: 5.9,  durchflussNormal: 33.8,  durchflussSpitze: 67.6,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 30,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
+  { name: 'pH-Optima MFH 30/2xWS1-CK',      artNr: '4428', harz: 60,  tank: '1035', zoll: 10, querschnitt: 5.067, harzhoehe: 5.9,  durchflussNormal: 33.2,  durchflussSpitze: 66.4,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 30,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
   { name: 'pH-Optima MFH 40/2xWS1-CK',      artNr: '4429', harz: 80,  tank: '1044', zoll: 10, querschnitt: 5.067, harzhoehe: 7.9,  durchflussNormal: 33.8,  durchflussSpitze: 67.6,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 40,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
   { name: 'pH-Optima MFH 50/2xWS1-CK',      artNr: '4430', harz: 100, tank: '1054', zoll: 10, querschnitt: 5.067, harzhoehe: 9.9,  durchflussNormal: 33.8,  durchflussSpitze: 67.6,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 50,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
   { name: 'pH-Optima MFH 75/2xWS1-CK',      artNr: '4431', harz: 150, tank: '1354', zoll: 13, querschnitt: 8.563, harzhoehe: 8.8,  durchflussNormal: 57.0,  durchflussSpitze: 114.2,  kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 75,  querschnittGesamt: 17.126, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
