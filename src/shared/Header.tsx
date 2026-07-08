@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 
-const APP_VERSION = '2.3.1'
+const APP_VERSION = '2.4.0'
 
 export function Header() {
   const location = useLocation()

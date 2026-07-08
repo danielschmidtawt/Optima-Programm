@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { Ergebnisse, Anlage, AnlagenKategorie } from '../calc'
 import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ampelFuerIntervall, betriebFuerAnlage, ANLAGEN_KATALOG } from '../calc'
+import { EngineeringPanel, PlausiBox } from './EngineeringPanel'
 
 interface Props {
   ergebnisse: Ergebnisse
@@ -353,6 +354,9 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride, pdfZeigeSal
         </div>
       </div>
 
+      {/* Engineering / DEV-Ansicht – Live-Ampeln (nur intern, nicht im Kunden-PDF) */}
+      <EngineeringPanel ergebnisse={e} anlage={angezeigte} />
+
       {/* Plausi-Checks – Anschluss & Durchfluss (nur intern, nicht im Kunden-PDF) */}
       {(e.plausiCheck1 || flussCheck?.warnung || (angezeigte && flussCheck)) && (
         <div className="no-print space-y-3">
@@ -600,6 +604,9 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride, pdfZeigeSal
           )
         })()}
       </div>
+
+      {/* Plausibilitätsprüfung (Teil D) – Gesamtstatus der Auslegung (nur intern) */}
+      <PlausiBox ergebnisse={e} anlage={angezeigte} />
     </section>
   )
 }

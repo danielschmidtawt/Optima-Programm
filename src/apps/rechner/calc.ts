@@ -9,6 +9,15 @@ export type AnschlussGroesse = '' | '1"' | '5/4"' | '1½"' | '2"'
 export type HaerteEinheit = 'dH' | 'fH'
 export type Waehrung = 'CHF' | 'EUR'
 
+// Auslegungsmodus: ändert NUR Ziel-/Ampelgrenzen und die Auto-Auswahl, nicht die Physik.
+// robust  = niedrige Filtergeschwindigkeit/-Δp → grössere Flasche, seltene Regeneration
+// kompakt = höhere Geschwindigkeit/Δp zulässig (Grünbeck-Prinzip) → kleinere Flasche
+export type Modus = 'robust' | 'kompakt'
+
+// Max. Filtergeschwindigkeit [m/h] für die AUTO-AUSWAHL je Modus
+// (robust = Grüngrenze, kompakt = Gelbgrenze; Anzeige-Grenzen: engineering.ts GRENZWERTE)
+export const AUTO_AUSWAHL_V_MAX: Record<Modus, number> = { robust: 40, kompakt: 75 }
+
 export interface Eingaben {
   projektname: string
   bearbeiter: string
@@ -20,6 +29,7 @@ export interface Eingaben {
   bwAuto: boolean
   anlagentyp: AnlagenTyp
   anschluss: AnschlussGroesse
+  modus: Modus
   v1Auto: boolean           // true = V1 aus BW (SVGW W3), false = manuell
   v1Manuell: number         // l/s – nur bei v1Auto = false
   // Erweiterte Einstellungen
@@ -50,6 +60,8 @@ export interface Anlage {
   durchflussSpitze: number  // l/min
   kategorie: AnlagenKategorie
   betriebsart: AnlagenTyp
+  // Optional: Flaschen-Innenvolumen [l] für Freibord-Prüfung (fehlt = Datenlücke)
+  innenvolumenL?: number
   // Parallel-spezifische Felder (nur bei parallel_1 und parallel_1_5)
   harzProTank?: number          // Liter pro Tank
   querschnittGesamt?: number    // dm² Gesamt-Querschnitt (2 × Einzel)
@@ -241,19 +253,28 @@ export function betriebFuerAnlage(
   return { intervallNatuerlich, intervallEffektiv, zwangsregeneration, regenProMonat, salzProRegen, salzMonat, salzJahr, kostenJahr }
 }
 
-// Anlagenempfehlung: passende Anlage aus Katalog finden
+// Anlagenempfehlung: passende Anlage aus Katalog finden.
+// Hydraulisches Kriterium = Filtergeschwindigkeit im Betrieb je Modus:
+//   robust  → v ≤ 40 m/h (Grünbereich, entspricht dem bisherigen Spitzendurchfluss-Filter)
+//   kompakt → v ≤ 75 m/h (bis Gelbgrenze, Grünbeck-Prinzip: kleinere Flasche zulässig)
 function findePassendeAnlage(
   anlagentyp: AnlagenTyp,
   harzmengeProFlasche: number,
   volumenstromEnthaerterLMin: number,
+  modus: Modus,
 ): { empfohlen: Anlage | null; alternativen: Anlage[] } {
-  // Filter nach Betriebsart
+  const vMax = AUTO_AUSWAHL_V_MAX[modus]
   const passend = ANLAGEN_KATALOG
     .filter(a => a.betriebsart === anlagentyp)
-    // Harzmenge der Anlage muss >= berechnete Harzmenge pro Flasche sein
+    // Harzmenge der Anlage muss >= berechnete Harzmenge sein
     .filter(a => a.harz >= harzmengeProFlasche)
-    // Spitzendurchfluss muss >= berechneter Volumenstrom durch Enthärter sein
-    .filter(a => a.durchflussSpitze >= volumenstromEnthaerterLMin)
+    // Filtergeschwindigkeit im Betrieb: v = 6·Q/A, Q pro Flasche (Parallel: VE/2)
+    .filter(a => {
+      const qProFlasche = a.betriebsart === 'parallel' ? volumenstromEnthaerterLMin / 2 : volumenstromEnthaerterLMin
+      return (6 * qProFlasche) / a.querschnitt <= vMax
+    })
+    // Parallelverteiler-Limit bleibt hartes Kriterium
+    .filter(a => a.maxAnschlussFluss == null || volumenstromEnthaerterLMin <= a.maxAnschlussFluss)
     // Sortieren: kleinste passende zuerst (nach Harzvolumen)
     .sort((a, b) => a.harz - b.harz || a.durchflussSpitze - b.durchflussSpitze)
 
@@ -302,6 +323,9 @@ export interface Ergebnisse {
   waehrung: Waehrung
   maxRegenIntervall: number
   salzkostenProKg: number
+  modus: Modus
+  vaRefLs: number   // Referenz-Apparat (VA) für Δp-Berechnung
+  dpRefBar: number  // Referenz-Δp (ΔpA)
   // Anlagenvorschlag aus Produktkatalog
   empfohleneAnlage: Anlage | null
   alternativeAnlagen: Anlage[]
@@ -473,7 +497,7 @@ export function berechne(e: Eingaben): Ergebnisse {
   // Simplex/Duplex: Katalog-Harz = Harz pro Flasche
   const harzFuerMatching = e.anlagentyp === 'parallel' ? harzmengeGesamt : harzmengeProFlasche
   const { empfohlen: empfohleneAnlage, alternativen: alternativeAnlagen } =
-    findePassendeAnlage(e.anlagentyp, harzFuerMatching, volumenstromEnthaerterLMin)
+    findePassendeAnlage(e.anlagentyp, harzFuerMatching, volumenstromEnthaerterLMin, e.modus)
 
   // ── Empfehlungstext (nutzt Anlagen-Harzwerte wenn verfügbar) ─────────────
   const anlageHarz = empfohleneAnlage ? empfohleneAnlage.harz : harzmengeGesamt
@@ -521,6 +545,9 @@ export function berechne(e: Eingaben): Ergebnisse {
     waehrung: e.waehrung,
     maxRegenIntervall: e.maxRegenIntervall,
     salzkostenProKg: e.salzkosten,
+    modus: e.modus,
+    vaRefLs: e.volumenstromApparat,
+    dpRefBar: e.druckverlustApparat,
     harzmengeGesamt: Math.max(0, harzmengeGesamt),
     harzmengeProFlasche: Math.max(0, harzmengeProFlasche),
     anzahlFlaschen,

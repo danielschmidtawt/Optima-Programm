@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { berechne, dhToFh, fhToDh, type Eingaben, type AnlagenTyp, type Anlage, type HaerteEinheit } from './calc'
 import { Header } from '../../shared/Header'
 import { ProjectInputs } from './components/ProjectInputs'
@@ -19,6 +19,7 @@ const DEFAULTS: Eingaben = {
   bwAuto: true,
   anlagentyp: 'duplex',
   anschluss: '',
+  modus: 'robust',
   v1Auto: true,
   v1Manuell: 0,
   verbrauchProPerson: 150,
@@ -72,8 +73,13 @@ export default function RechnerApp() {
   const ergebnisse = useMemo(() => berechne(eingaben), [eingaben])
 
   // Manuelle Anlagenauswahl (Override der Empfehlung) – zurücksetzen bei neuer Empfehlung
+  // (Render-Phase-Reset statt Effect: React-Pattern "adjusting state when props change")
   const [anlagenOverride, setAnlagenOverride] = useState<Anlage | null>(null)
-  useEffect(() => setAnlagenOverride(null), [ergebnisse.empfohleneAnlage])
+  const [letzteEmpfehlung, setLetzteEmpfehlung] = useState<Anlage | null>(ergebnisse.empfohleneAnlage)
+  if (letzteEmpfehlung !== ergebnisse.empfohleneAnlage) {
+    setLetzteEmpfehlung(ergebnisse.empfohleneAnlage)
+    setAnlagenOverride(null)
+  }
   const angezeigteAnlage = anlagenOverride ?? ergebnisse.empfohleneAnlage
   const effektiverTyp = angezeigteAnlage?.betriebsart ?? eingaben.anlagentyp
 
@@ -93,6 +99,7 @@ export default function RechnerApp() {
               effektiverTyp === 'duplex' ? 'Duplex (Pendel)' : 'Parallel'
             } · Personen: {eingaben.personen} · Rohwasser: {eingaben.rohwasserhaerte} °{eingaben.haerteEinheit} → Resthärte {eingaben.resthaerte} °{eingaben.haerteEinheit}
             {eingaben.anschluss && <> · Anschluss bauseits: {eingaben.anschluss}</>}
+            <> · Auslegungsmodus: {eingaben.modus === 'robust' ? 'Robust' : 'Kompakt'}</>
           </p>
         </div>
         <div className="print-meta">
@@ -113,6 +120,40 @@ export default function RechnerApp() {
           personen={eingaben.personen}
           anlagentypEmpfehlung={ergebnisse.anlagentypEmpfehlung}
         />
+
+        {/* Auslegungsmodus */}
+        <div className="no-print mb-6">
+          <div className="card-glass rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="section-title text-sm font-semibold text-slate-800">Auslegungsmodus</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {eingaben.modus === 'robust'
+                    ? 'Robust: niedrige Filtergeschwindigkeit & Δp, tiefe Enthärtung möglich → grössere Flasche, seltene Regeneration.'
+                    : 'Kompakt (Grünbeck-Prinzip): höhere Geschwindigkeit & Δp zulässig → kleinere Flasche, häufigere Regeneration.'}
+                </p>
+              </div>
+              <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+                <button
+                  onClick={() => update('modus', 'robust')}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                    eingaben.modus === 'robust' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Robust
+                </button>
+                <button
+                  onClick={() => update('modus', 'kompakt')}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                    eingaben.modus === 'kompakt' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Kompakt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* V1 Spitzenvolumenstrom – Auto / Manuell */}
         <div className="no-print mb-6">

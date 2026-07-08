@@ -30,6 +30,7 @@ const BASIS: Eingaben = {
   bwAuto: true,
   anlagentyp: 'duplex',
   anschluss: '',
+  modus: 'robust',
   v1Auto: true,
   v1Manuell: 0,
   verbrauchProPerson: 150,
@@ -167,14 +168,20 @@ describe('Anlagenempfehlung (Katalog-Matching)', () => {
     expect(r.empfohleneAnlage).toBeNull()
   })
 
-  it('Empfehlung erfüllt immer Harz- UND Durchflussbedarf', () => {
+  it('Empfehlung erfüllt immer Harz- UND Hydraulikbedarf (robust: v ≤ 40 m/h)', () => {
     for (const personen of [2, 8, 20, 40, 80, 120]) {
       for (const typ of ['simplex', 'duplex', 'parallel'] as const) {
         const r = berechne({ ...BASIS, personen, bwLu: personen * 2.94, anlagentyp: typ })
         if (r.empfohleneAnlage) {
+          const a = r.empfohleneAnlage
           const harzBedarf = typ === 'parallel' ? r.harzmengeGesamt : r.harzmengeProFlasche
-          expect(r.empfohleneAnlage.harz).toBeGreaterThanOrEqual(harzBedarf)
-          expect(r.empfohleneAnlage.durchflussSpitze).toBeGreaterThanOrEqual(r.volumenstromEnthaerter * 60)
+          expect(a.harz).toBeGreaterThanOrEqual(harzBedarf)
+          const veLmin = r.volumenstromEnthaerter * 60
+          const qProFlasche = typ === 'parallel' ? veLmin / 2 : veLmin
+          expect((6 * qProFlasche) / a.querschnitt).toBeLessThanOrEqual(40.001)
+          if (a.maxAnschlussFluss != null) {
+            expect(veLmin).toBeLessThanOrEqual(a.maxAnschlussFluss)
+          }
         }
       }
     }
