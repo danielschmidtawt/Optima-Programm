@@ -40,13 +40,44 @@ export interface Eingaben {
   natriumRohwasser: number    // mg/l
   salzkosten: number          // pro kg, in gewählter Währung
   waehrung: Waehrung
-  volumenstromApparat: number // l/s (VA)
-  druckverlustApparat: number // bar (ΔpA)
+  volumenstromApparat: number // l/s (VA) – VERALTET: Δp jetzt über Bett-Formel (druckverlustBar)
+  druckverlustApparat: number // bar (ΔpA) – VERALTET: Δp jetzt über Bett-Formel
   bwProPerson: number         // BW pro Person Richtwert
 }
 
 // ── Produktkatalog ─────────────────────────────────────────────────────────
-export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'parallel_1' | 'einzel_1_5' | 'parallel_1_5' | 'einzel_2'
+export type AnlagenKategorie = 'einzel_1' | 'twin_1' | 'parallel_1' | 'einzel_1_5' | 'parallel_1_5' | 'einzel_2' | 'parallel_2'
+
+// ── Tankdaten (geprüfte Herstellerliste – SINGLE SOURCE OF TRUTH) ──────────
+// Code = Ø[Zoll] × Höhe[Zoll]. Alle Geometrie-/Volumendaten stammen von hier.
+export interface TankDaten {
+  zoll: number
+  flaecheDm2: number      // A [dm²]
+  innenvolumenL: number   // Tank-Innenvolumen [l]
+}
+
+export const TANK_DATEN: Record<string, TankDaten> = {
+  '735':  { zoll: 7,  flaecheDm2: 2.48,  innenvolumenL: 20.4 },
+  '835':  { zoll: 8,  flaecheDm2: 3.24,  innenvolumenL: 25.7 },
+  '935':  { zoll: 9,  flaecheDm2: 4.10,  innenvolumenL: 31.3 },
+  '1035': { zoll: 10, flaecheDm2: 5.06,  innenvolumenL: 38.9 },
+  '1044': { zoll: 10, flaecheDm2: 5.06,  innenvolumenL: 48.0 },
+  '1054': { zoll: 10, flaecheDm2: 5.06,  innenvolumenL: 60.7 },
+  '1354': { zoll: 13, flaecheDm2: 8.56,  innenvolumenL: 103.1 },
+  '1452': { zoll: 14, flaecheDm2: 9.93,  innenvolumenL: 115.4 },
+  '1665': { zoll: 16, flaecheDm2: 12.97, innenvolumenL: 170.0 },
+  '1865': { zoll: 18, flaecheDm2: 16.41, innenvolumenL: 250.0 },
+  '2160': { zoll: 21, flaecheDm2: 22.33, innenvolumenL: 309.0 },
+  '2469': { zoll: 24, flaecheDm2: 29.17, innenvolumenL: 436.0 },
+}
+
+// Hersteller-Auslegungs-/Betriebsgeschwindigkeit: 60 m/h
+// → Nenndurchfluss je Flasche = A[dm²] × 10 l/min
+export const NENN_GESCHWINDIGKEIT_MH = 60
+// Kurzzeitige Spitze / physikalisches Hartlimit
+export const SPITZEN_GESCHWINDIGKEIT_MH = 80
+// 2"-Parallelverteiler (DN50, 2 m/s)
+export const VERTEILER_2ZOLL_LMIN = 243.2
 
 export interface Anlage {
   name: string
@@ -70,59 +101,98 @@ export interface Anlage {
   ventilBegrenztSpitze?: boolean
 }
 
-// Durchfluss-Bemessung: Minimum aus zwei Grenzen
-//  1. Filtergeschwindigkeit: 20 m/h Nenn / 40 m/h Spitze × Querschnitt
-//  2. Kontaktzeit (spezifische Belastung): 33.2 BV/h Nenn / 66.4 BV/h Spitze × Harzvolumen
-// Gleicher Tankdurchmesser = gleiche Geschwindigkeitsgrenze; flache Betten
-// (Betthöhe < 6.7 dm) werden zusätzlich durch die Kontaktzeit begrenzt (z.B. MFH 30).
+// ── Katalog wird aus TANK_DATEN generiert (Single Source of Truth) ─────────
+// Nenndurchfluss je Flasche = A × 10 l/min (60 m/h Hersteller-Auslegung)
+// Spitze je Flasche = A × 80/6 l/min (kurzzeitig, Hartlimit 80 m/h)
+// Parallel: 2 Flaschen, begrenzt durch den 2"-Verteiler (243.2 l/min)
+
+const r1 = (n: number) => Math.round(n * 10) / 10
+
+function einzelAnlage(
+  name: string, artNr: string, harz: number, tankCode: string,
+  kategorie: AnlagenKategorie, betriebsart: 'simplex' | 'duplex',
+): Anlage {
+  const t = TANK_DATEN[tankCode]
+  return {
+    name, artNr, harz, tank: tankCode,
+    zoll: t.zoll, querschnitt: t.flaecheDm2, innenvolumenL: t.innenvolumenL,
+    harzhoehe: r1(harz / t.flaecheDm2),
+    durchflussNormal: r1(t.flaecheDm2 * NENN_GESCHWINDIGKEIT_MH / 6),
+    durchflussSpitze: r1(t.flaecheDm2 * SPITZEN_GESCHWINDIGKEIT_MH / 6),
+    kategorie, betriebsart,
+  }
+}
+
+function parallelAnlage(
+  name: string, artNr: string, harzProTank: number, tankCode: string,
+  kategorie: AnlagenKategorie, verteilerLmin?: number,
+): Anlage {
+  const t = TANK_DATEN[tankCode]
+  const nenn2 = 2 * t.flaecheDm2 * NENN_GESCHWINDIGKEIT_MH / 6
+  const spitze2 = 2 * t.flaecheDm2 * SPITZEN_GESCHWINDIGKEIT_MH / 6
+  const nennBegrenzt = verteilerLmin != null && nenn2 > verteilerLmin
+  const spitzeBegrenzt = verteilerLmin != null && spitze2 > verteilerLmin
+  return {
+    name, artNr, harz: harzProTank * 2, tank: tankCode,
+    zoll: t.zoll, querschnitt: t.flaecheDm2, innenvolumenL: t.innenvolumenL,
+    harzhoehe: r1(harzProTank / t.flaecheDm2),
+    durchflussNormal: r1(nennBegrenzt ? verteilerLmin! : nenn2),
+    durchflussSpitze: r1(spitzeBegrenzt ? verteilerLmin! : spitze2),
+    kategorie, betriebsart: 'parallel',
+    harzProTank, querschnittGesamt: r1(2 * t.flaecheDm2 * 100) / 100,
+    maxAnschlussFluss: verteilerLmin,
+    ventilBegrenztNormal: nennBegrenzt, ventilBegrenztSpitze: spitzeBegrenzt,
+  }
+}
+
 export const ANLAGEN_KATALOG: Anlage[] = [
-  // === EINZELANLAGE CLACK 1" ===
-  { name: 'pH-Optima MFH 15/WS1-CK',          artNr: '4388', harz: 15,  tank: '735',    zoll: 7,  querschnitt: 2.483,  harzhoehe: 6.0,  durchflussNormal: 8.3,   durchflussSpitze: 16.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 15/WS1-CK Kabinett',  artNr: '4389', harz: 15,  tank: '735',    zoll: 7,  querschnitt: 2.483,  harzhoehe: 6.0,  durchflussNormal: 8.3,   durchflussSpitze: 16.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 20/WS1-CK',          artNr: '4390', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 20/WS1-CK Kabinett',  artNr: '4391', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 25/WS1-CK',          artNr: '4392', harz: 25,  tank: '935',    zoll: 9,  querschnitt: 4.104,  harzhoehe: 6.1,  durchflussNormal: 13.7,  durchflussSpitze: 27.4,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 30/WS1-CK',          artNr: '4393', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 40/WS1-CK',          artNr: '4394', harz: 40,  tank: '1044',   zoll: 10, querschnitt: 5.067,  harzhoehe: 7.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 50/WS1-CK',          artNr: '4395', harz: 50,  tank: '1054',   zoll: 10, querschnitt: 5.067,  harzhoehe: 9.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 75/WS1-CK',          artNr: '4396', harz: 75,  tank: '1354',   zoll: 13, querschnitt: 8.563,  harzhoehe: 8.8,  durchflussNormal: 28.5,  durchflussSpitze: 57.1,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 100/WS1-CK',         artNr: '4397', harz: 100, tank: '1452',   zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 33.1,  durchflussSpitze: 66.2,   kategorie: 'einzel_1', betriebsart: 'simplex' },
-  // === PENDEL TWIN CLACK 1" ===
-  { name: 'pH-Optima MFH 15/Twin-WS1-CK',     artNr: '4398', harz: 15,  tank: '735',    zoll: 7,  querschnitt: 2.483,  harzhoehe: 6.0,  durchflussNormal: 8.3,   durchflussSpitze: 16.6,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 20/Twin-WS1-CK',     artNr: '4399', harz: 20,  tank: '835',    zoll: 8,  querschnitt: 3.243,  harzhoehe: 6.2,  durchflussNormal: 10.8,  durchflussSpitze: 21.6,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 30/Twin-WS1-CK',     artNr: '4400', harz: 30,  tank: '1035',   zoll: 10, querschnitt: 5.067,  harzhoehe: 5.9,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 40/Twin-WS1-CK',     artNr: '4401', harz: 40,  tank: '1044',   zoll: 10, querschnitt: 5.067,  harzhoehe: 7.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 50/Twin-WS1-CK',     artNr: '4402', harz: 50,  tank: '1054',   zoll: 10, querschnitt: 5.067,  harzhoehe: 9.9,  durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 75/Twin-WS1-CK',     artNr: '4403', harz: 75,  tank: '1354',   zoll: 10, querschnitt: 5.067,  harzhoehe: 14.8, durchflussNormal: 16.9,  durchflussSpitze: 33.8,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  { name: 'pH-Optima MFH 100/Twin-WS1-CK',    artNr: '4404', harz: 100, tank: '1452',   zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 33.1,  durchflussSpitze: 66.2,   kategorie: 'twin_1',   betriebsart: 'duplex' },
-  // === PARALLEL 2x CLACK 1" ===
-  // 2 vollwertige Simplex 1" Einheiten mit 2" Parallelverteiler (DN50, max. 243.2 l/min @ 2 m/s)
-  { name: 'pH-Optima MFH 15/2xWS1-CK',      artNr: '4425', harz: 30,  tank: '735',  zoll: 7,  querschnitt: 2.483, harzhoehe: 6.0,  durchflussNormal: 16.6,  durchflussSpitze: 33.2,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 15,  querschnittGesamt: 4.966,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 20/2xWS1-CK',      artNr: '4426', harz: 40,  tank: '835',  zoll: 8,  querschnitt: 3.243, harzhoehe: 6.2,  durchflussNormal: 21.6,  durchflussSpitze: 43.2,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 20,  querschnittGesamt: 6.486,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 25/2xWS1-CK',      artNr: '4427', harz: 50,  tank: '935',  zoll: 9,  querschnitt: 4.104, harzhoehe: 6.1,  durchflussNormal: 27.4,  durchflussSpitze: 54.8,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 25,  querschnittGesamt: 8.208,  maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 30/2xWS1-CK',      artNr: '4428', harz: 60,  tank: '1035', zoll: 10, querschnitt: 5.067, harzhoehe: 5.9,  durchflussNormal: 33.2,  durchflussSpitze: 66.4,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 30,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 40/2xWS1-CK',      artNr: '4429', harz: 80,  tank: '1044', zoll: 10, querschnitt: 5.067, harzhoehe: 7.9,  durchflussNormal: 33.8,  durchflussSpitze: 67.6,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 40,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 50/2xWS1-CK',      artNr: '4430', harz: 100, tank: '1054', zoll: 10, querschnitt: 5.067, harzhoehe: 9.9,  durchflussNormal: 33.8,  durchflussSpitze: 67.6,   kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 50,  querschnittGesamt: 10.134, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 75/2xWS1-CK',      artNr: '4431', harz: 150, tank: '1354', zoll: 13, querschnitt: 8.563, harzhoehe: 8.8,  durchflussNormal: 57.0,  durchflussSpitze: 114.2,  kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 75,  querschnittGesamt: 17.126, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 100/2xWS1-CK',     artNr: '4432', harz: 200, tank: '1452', zoll: 14, querschnitt: 9.931, harzhoehe: 10.1, durchflussNormal: 66.2,  durchflussSpitze: 132.4,  kategorie: 'parallel_1', betriebsart: 'parallel', harzProTank: 100, querschnittGesamt: 19.862, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  // === EINZELANLAGE CLACK 1,5" ===
-  { name: 'pH-Optima MFH 100/WS1,5-CK',       artNr: '4417', harz: 100, tank: '1452',   zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 33.1,  durchflussSpitze: 66.2,   kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 150/WS1,5-CK',       artNr: '4418', harz: 150, tank: '1665-4', zoll: 16, querschnitt: 12.972, harzhoehe: 11.6, durchflussNormal: 43.2,  durchflussSpitze: 86.5,   kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 200/WS1,5-CK',       artNr: '4419', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 250/WS1,5-CK',       artNr: '4420', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 350/WS1,5-CK',       artNr: '4421', harz: 350, tank: '2469',   zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'einzel_1_5', betriebsart: 'simplex' },
-  // === PARALLEL 2x CLACK 1,5" ===
-  // 2 vollwertige Simplex 1,5" Einheiten mit 2" Parallelverteiler (DN50, max. 243.2 l/min @ 2 m/s)
-  // Durchfluss = 2× Einzelanlage, begrenzt nur durch 2" Verteiler bei den grössten Einheiten
-  { name: 'pH-Optima MFH 100/2xWS1,5-CK',     artNr: '4412', harz: 200, tank: '1452, 4"', zoll: 14, querschnitt: 9.931,  harzhoehe: 10.1, durchflussNormal: 66.2,   durchflussSpitze: 132.4,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 100, querschnittGesamt: 19.863, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 150/2xWS1,5-CK',     artNr: '4413', harz: 300, tank: '1665-4',   zoll: 16, querschnitt: 12.972, harzhoehe: 11.6, durchflussNormal: 86.4,   durchflussSpitze: 173.0,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 150, querschnittGesamt: 25.943, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 200/2xWS1,5-CK',     artNr: '4414', harz: 400, tank: '1865, 4"', zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 109.4,  durchflussSpitze: 218.8,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 200, querschnittGesamt: 32.835, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: false },
-  { name: 'pH-Optima MFH 250/2xWS1,5-CK',     artNr: '4415', harz: 500, tank: '2160, 4"', zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 149.0,  durchflussSpitze: 243.2,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 250, querschnittGesamt: 44.692, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: true },
-  { name: 'pH-Optima MFH 350/2xWS1,5-CK',     artNr: '4416', harz: 700, tank: '2469, 4"', zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 194.6,  durchflussSpitze: 243.2,  kategorie: 'parallel_1_5', betriebsart: 'parallel', harzProTank: 350, querschnittGesamt: 58.373, maxAnschlussFluss: 243.2, ventilBegrenztNormal: false, ventilBegrenztSpitze: true },
-  // === EINZELANLAGE CLACK 2" ===
-  { name: 'pH-Optima MFH 200/WS2-CK',         artNr: '4422', harz: 200, tank: '1865',   zoll: 18, querschnitt: 16.417, harzhoehe: 12.2, durchflussNormal: 54.7,  durchflussSpitze: 109.4,  kategorie: 'einzel_2', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 250/WS2-CK',         artNr: '4423', harz: 250, tank: '2160',   zoll: 21, querschnitt: 22.346, harzhoehe: 11.2, durchflussNormal: 74.5,  durchflussSpitze: 149.0,  kategorie: 'einzel_2', betriebsart: 'simplex' },
-  { name: 'pH-Optima MFH 350/WS2-CK',         artNr: '4424', harz: 350, tank: '2469',   zoll: 24, querschnitt: 29.186, harzhoehe: 12.0, durchflussNormal: 97.3,  durchflussSpitze: 194.6,  kategorie: 'einzel_2', betriebsart: 'simplex' },
+  // === EINZELANLAGE CLACK 1" (WS1): 15/735 … 100/1452 ===
+  einzelAnlage('pH-Optima MFH 15/WS1-CK',          '4388', 15,  '735',  'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 15/WS1-CK Kabinett', '4389', 15,  '735',  'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 20/WS1-CK',          '4390', 20,  '835',  'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 20/WS1-CK Kabinett', '4391', 20,  '835',  'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 25/WS1-CK',          '4392', 25,  '935',  'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 30/WS1-CK',          '4393', 30,  '1035', 'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 40/WS1-CK',          '4394', 40,  '1044', 'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 50/WS1-CK',          '4395', 50,  '1054', 'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 75/WS1-CK',          '4396', 75,  '1354', 'einzel_1', 'simplex'),
+  einzelAnlage('pH-Optima MFH 100/WS1-CK',         '4397', 100, '1452', 'einzel_1', 'simplex'),
+  // === PENDEL TWIN CLACK 1": 15/735 … 100/1452 (FIX: 75er auf Tank 1354/13") ===
+  einzelAnlage('pH-Optima MFH 15/Twin-WS1-CK',  '4398', 15,  '735',  'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 20/Twin-WS1-CK',  '4399', 20,  '835',  'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 30/Twin-WS1-CK',  '4400', 30,  '1035', 'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 40/Twin-WS1-CK',  '4401', 40,  '1044', 'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 50/Twin-WS1-CK',  '4402', 50,  '1054', 'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 75/Twin-WS1-CK',  '4403', 75,  '1354', 'twin_1', 'duplex'),
+  einzelAnlage('pH-Optima MFH 100/Twin-WS1-CK', '4404', 100, '1452', 'twin_1', 'duplex'),
+  // === PARALLEL 2x CLACK 1": 15, 20, 30, 40, 50, 75, 100 (Herstellerliste ohne 25er) ===
+  parallelAnlage('pH-Optima MFH 15/2xWS1-CK',  '4425', 15,  '735',  'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 20/2xWS1-CK',  '4426', 20,  '835',  'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 30/2xWS1-CK',  '4428', 30,  '1035', 'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 40/2xWS1-CK',  '4429', 40,  '1044', 'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 50/2xWS1-CK',  '4430', 50,  '1054', 'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 75/2xWS1-CK',  '4431', 75,  '1354', 'parallel_1', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 100/2xWS1-CK', '4432', 100, '1452', 'parallel_1', VERTEILER_2ZOLL_LMIN),
+  // === EINZELANLAGE CLACK 1,5": 100/1452 … 350/2469 ===
+  einzelAnlage('pH-Optima MFH 100/WS1,5-CK', '4417', 100, '1452', 'einzel_1_5', 'simplex'),
+  einzelAnlage('pH-Optima MFH 150/WS1,5-CK', '4418', 150, '1665', 'einzel_1_5', 'simplex'),
+  einzelAnlage('pH-Optima MFH 200/WS1,5-CK', '4419', 200, '1865', 'einzel_1_5', 'simplex'),
+  einzelAnlage('pH-Optima MFH 250/WS1,5-CK', '4420', 250, '2160', 'einzel_1_5', 'simplex'),
+  einzelAnlage('pH-Optima MFH 350/WS1,5-CK', '4421', 350, '2469', 'einzel_1_5', 'simplex'),
+  // === PARALLEL 2x CLACK 1,5": 100 … 350 (2" Verteiler) ===
+  parallelAnlage('pH-Optima MFH 100/2xWS1,5-CK', '4412', 100, '1452', 'parallel_1_5', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 150/2xWS1,5-CK', '4413', 150, '1665', 'parallel_1_5', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 200/2xWS1,5-CK', '4414', 200, '1865', 'parallel_1_5', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 250/2xWS1,5-CK', '4415', 250, '2160', 'parallel_1_5', VERTEILER_2ZOLL_LMIN),
+  parallelAnlage('pH-Optima MFH 350/2xWS1,5-CK', '4416', 350, '2469', 'parallel_1_5', VERTEILER_2ZOLL_LMIN),
+  // === EINZELANLAGE CLACK 2": 200/1865 … 350/2469 ===
+  einzelAnlage('pH-Optima MFH 200/WS2-CK', '4422', 200, '1865', 'einzel_2', 'simplex'),
+  einzelAnlage('pH-Optima MFH 250/WS2-CK', '4423', 250, '2160', 'einzel_2', 'simplex'),
+  einzelAnlage('pH-Optima MFH 350/WS2-CK', '4424', 350, '2469', 'einzel_2', 'simplex'),
+  // === PARALLEL 2x CLACK 2" (neu gemäss Herstellerliste; Art.Nr. & Verteilergrösse noch offen) ===
+  parallelAnlage('pH-Optima MFH 200/2xWS2-CK', 'offen-200', 200, '1865', 'parallel_2'),
+  parallelAnlage('pH-Optima MFH 250/2xWS2-CK', 'offen-250', 250, '2160', 'parallel_2'),
+  parallelAnlage('pH-Optima MFH 350/2xWS2-CK', 'offen-350', 350, '2469', 'parallel_2'),
 ]
 
 const KATEGORIE_LABELS: Record<AnlagenKategorie, string> = {
@@ -132,6 +202,7 @@ const KATEGORIE_LABELS: Record<AnlagenKategorie, string> = {
   einzel_1_5: 'Einzelanlage Clack 1,5"',
   parallel_1_5: 'Parallel 2x Clack 1,5"',
   einzel_2: 'Einzelanlage Clack 2"',
+  parallel_2: 'Parallel 2x Clack 2"',
 }
 
 export function kategorieLabel(k: AnlagenKategorie): string {
@@ -148,8 +219,30 @@ export function kopfgroesse(k: AnlagenKategorie): string {
     case 'parallel_1_5':
       return '5/4"'
     case 'einzel_2':
+    case 'parallel_2':
       return '2"'
   }
+}
+
+// ── Druckverlust (Bett-Formel) ──────────────────────────────────────────────
+// Δp_Bett[bar] ≈ DP_KOEFFIZIENT × v[m/h] × Betthöhe[m]  (Standard-Wohnbau-
+// Enthärterharz, ~12 °C) + Ventil/Verteiler-Pauschale. Der Koeffizient ist
+// EINE zentrale Konstante und kann später durch eine echte Harz-Δp-Kurve
+// ersetzt werden. Immer bei der TATSÄCHLICHEN Betriebsgeschwindigkeit rechnen.
+export const DP_KOEFFIZIENT_BAR_PRO_MH_M = 0.006
+export const DP_VENTIL_BAR = 0.25
+
+export function druckverlustBar(vMh: number, betthoeheM: number): number {
+  if (vMh <= 0) return 0
+  return DP_KOEFFIZIENT_BAR_PRO_MH_M * vMh * betthoeheM + DP_VENTIL_BAR
+}
+
+// Δp der konkreten Anlage bei gegebenem VE [l/s]
+export function druckverlustFuerAnlage(anlage: Anlage, veLs: number): number {
+  const qLmin = (anlage.betriebsart === 'parallel' ? veLs / 2 : veLs) * 60
+  const vMh = (6 * qLmin) / anlage.querschnitt
+  const hM = (anlage.harzProTank ?? anlage.harz) / anlage.querschnitt / 10
+  return druckverlustBar(vMh, hM)
 }
 
 // Max. sinnvoller Durchfluss pro Anschlussgrösse bei ~2 m/s Fliessgeschwindigkeit
@@ -324,8 +417,6 @@ export interface Ergebnisse {
   maxRegenIntervall: number
   salzkostenProKg: number
   modus: Modus
-  vaRefLs: number   // Referenz-Apparat (VA) für Δp-Berechnung
-  dpRefBar: number  // Referenz-Δp (ΔpA)
   // Anlagenvorschlag aus Produktkatalog
   empfohleneAnlage: Anlage | null
   alternativeAnlagen: Anlage[]
@@ -378,22 +469,8 @@ export function berechne(e: Eingaben): Ergebnisse {
   // VE: Anteil des Volumenstroms, der durch Enthärter fliesst
   const volumenstromEnthaerter = spitzenvolumenstrom * weichwasserAnteil
 
-  // Druckverlust ΔpE (vereinfacht proportional zu V²)
-  // Simplex: voller Volumenstrom durch 1 Flasche
-  // Duplex: voller Volumenstrom durch 1 Flasche (nur 1 aktiv im Pendelbetrieb)
-  // Parallel: halber Volumenstrom pro Flasche (beide gleichzeitig durchströmt)
-  const vaRef = e.volumenstromApparat
-  const dpRef = e.druckverlustApparat
-  let druckverlust = 0
-  if (vaRef > 0) {
-    if (e.anlagentyp === 'parallel') {
-      // Beide Tanks gleichzeitig → halber Volumenstrom pro Tank → 1/4 Druckverlust
-      const veProTank = volumenstromEnthaerter / 2
-      druckverlust = dpRef * Math.pow(veProTank / vaRef, 2)
-    } else {
-      druckverlust = dpRef * Math.pow(volumenstromEnthaerter / vaRef, 2)
-    }
-  }
+  // Druckverlust: Bett-Formel für die konkrete Anlage – wird nach dem
+  // Katalog-Matching berechnet (braucht Betthöhe der empfohlenen Anlage).
 
   // ── Harzmenge ──────────────────────────────────────────────────────────────
   // Benötigte Kapazität für einen Regenerationszyklus INKL. Tagesreserve:
@@ -499,6 +576,11 @@ export function berechne(e: Eingaben): Ergebnisse {
   const { empfohlen: empfohleneAnlage, alternativen: alternativeAnlagen } =
     findePassendeAnlage(e.anlagentyp, harzFuerMatching, volumenstromEnthaerterLMin, e.modus)
 
+  // Δp bei der TATSÄCHLICHEN Betriebsgeschwindigkeit der empfohlenen Anlage
+  const druckverlust = empfohleneAnlage && volumenstromEnthaerter > 0
+    ? druckverlustFuerAnlage(empfohleneAnlage, volumenstromEnthaerter)
+    : 0
+
   // ── Empfehlungstext (nutzt Anlagen-Harzwerte wenn verfügbar) ─────────────
   const anlageHarz = empfohleneAnlage ? empfohleneAnlage.harz : harzmengeGesamt
   const anlageHarzProTank = empfohleneAnlage?.harzProTank
@@ -546,8 +628,6 @@ export function berechne(e: Eingaben): Ergebnisse {
     maxRegenIntervall: e.maxRegenIntervall,
     salzkostenProKg: e.salzkosten,
     modus: e.modus,
-    vaRefLs: e.volumenstromApparat,
-    dpRefBar: e.druckverlustApparat,
     harzmengeGesamt: Math.max(0, harzmengeGesamt),
     harzmengeProFlasche: Math.max(0, harzmengeProFlasche),
     anzahlFlaschen,

@@ -6,24 +6,29 @@ import {
   betthoeheM,
   flussProFlascheLmin,
   druckverlustBar,
-  fuellgradProzent,
+  freibordProzent,
   beladungMolProL,
   ampelVelocity,
   ampelDp,
   ampelBett,
-  ampelFuellgrad,
+  ampelFreibord,
   ampelIntervallEng,
   ampelBeladung,
   ampelNatrium,
   engineeringChecks,
   schlechtesteAmpel,
   pruefeKatalog,
+  einordnung,
   V_HARTLIMIT_MH,
   MOL_PRO_DH_M3,
   GRENZWERTE,
   type EngKontext,
 } from './engineering'
-import { berechne, betriebFuerAnlage, dhToFh, ANLAGEN_KATALOG, HARZ_KAPAZITAET, type Eingaben, type Anlage } from './calc'
+import {
+  berechne, betriebFuerAnlage, dhToFh, ANLAGEN_KATALOG, HARZ_KAPAZITAET, TANK_DATEN,
+  DP_KOEFFIZIENT_BAR_PRO_MH_M, DP_VENTIL_BAR,
+  type Eingaben, type Anlage,
+} from './calc'
 
 function anlage(artNr: string): Anlage {
   const a = ANLAGEN_KATALOG.find(x => x.artNr === artNr)
@@ -51,8 +56,6 @@ function kontext(e: ReturnType<typeof berechne>): EngKontext {
     tagesbedarfKapazitaet: e.tagesbedarfKapazitaet,
     maxRegenIntervall: e.maxRegenIntervall,
     natriumNachEnthaertung: e.natriumNachEnthaertung,
-    vaRefLs: e.vaRefLs,
-    dpRefBar: e.dpRefBar,
   }
 }
 
@@ -71,14 +74,26 @@ describe('Rechenkern (reine Funktionen)', () => {
     expect(flussProFlascheLmin(1.0, 'parallel')).toBeCloseTo(30, 5)
   })
 
-  it('Δp ∝ Q²; Parallel halbiert den Flaschendurchfluss → ¼ Δp', () => {
-    expect(druckverlustBar(0.7, 'simplex', 0.7, 1.0)).toBeCloseTo(1.0, 5)
-    expect(druckverlustBar(0.7, 'parallel', 0.7, 1.0)).toBeCloseTo(0.25, 5)
+  it('Δp = 0.006 × v × Betthöhe + 0.25 (Ventilpauschale)', () => {
+    expect(DP_KOEFFIZIENT_BAR_PRO_MH_M).toBe(0.006)
+    expect(DP_VENTIL_BAR).toBe(0.25)
+    expect(druckverlustBar(60, 1.0)).toBeCloseTo(0.61, 2)  // 60 m/h, 1 m Bett → ~0.4–0.6 gesamt
+    expect(druckverlustBar(0, 1.0)).toBe(0)                // kein Fluss → kein Δp
   })
 
-  it('Füllgrad ohne Innenvolumen → null (Datenlücke, nicht raten)', () => {
-    expect(fuellgradProzent(30, undefined)).toBeNull()
-    expect(fuellgradProzent(30, 60)).toBeCloseTo(50, 5)
+  it('KONTROLL-REFERENZ: 100/Twin bei 31 m/h → ~0.2 bar Bett, ~0.45 bar gesamt', () => {
+    const twin100 = anlage('4404') // Tank 1452: A 9.93, 100 l → Betthöhe 1.007 m
+    const bett = betthoeheM(100, twin100.querschnitt)
+    expect(bett).toBeCloseTo(1.007, 2)
+    const dp = druckverlustBar(31, bett)
+    expect(dp - DP_VENTIL_BAR).toBeCloseTo(0.19, 1) // Bett-Anteil ~0.2
+    expect(dp).toBeCloseTo(0.44, 1)                 // gesamt ~0.45
+  })
+
+  it('Freibord = (Innenvolumen − Harz)/Innenvolumen; null nur ohne Tankvolumen', () => {
+    expect(freibordProzent(30, undefined)).toBeNull()
+    expect(freibordProzent(15, 20.4)).toBeCloseTo(26.47, 1) // Tank 735 mit 15 l Harz
+    expect(freibordProzent(40, 48.0)).toBeCloseTo(16.67, 1) // Tank 1044 mit 40 l
   })
 
   it('Beladung beim natürlichen Intervall = Harzkapazität in mol/l (≈0.89, grün)', () => {
@@ -101,11 +116,11 @@ describe('Ampel-Grenzen', () => {
     expect(ampelVelocity(80.5, 'kompakt')).toBe('rot')
   })
 
-  it('Δp modusabhängig', () => {
-    expect(ampelDp(0.35, 'robust')).toBe('gruen')
-    expect(ampelDp(0.5, 'robust')).toBe('gelb')
-    expect(ampelDp(0.9, 'robust')).toBe('rot')
-    expect(ampelDp(0.5, 'kompakt')).toBe('gruen')
+  it('Δp nach Marktbändern: <0.8 gut, 0.8–1.2 ok, >1.2 kritisch', () => {
+    expect(ampelDp(0.45, 'robust')).toBe('gruen')
+    expect(ampelDp(1.0, 'robust')).toBe('gelb')
+    expect(ampelDp(1.3, 'robust')).toBe('rot')
+    expect(ampelDp(0.7, 'kompakt')).toBe('gruen')
     expect(ampelDp(1.0, 'kompakt')).toBe('gelb')
     expect(ampelDp(1.25, 'kompakt')).toBe('rot')
   })
@@ -118,11 +133,12 @@ describe('Ampel-Grenzen', () => {
     expect(ampelBett(2.3)).toBe('rot')
   })
 
-  it('Füllgrad: grün 40–55, >65 rot', () => {
-    expect(ampelFuellgrad(50)).toBe('gruen')
-    expect(ampelFuellgrad(60)).toBe('gelb')
-    expect(ampelFuellgrad(20)).toBe('gelb')
-    expect(ampelFuellgrad(70)).toBe('rot')
+  it('Freibord: grün 15–55, gelb 8–15/55–70, rot <8 oder >70', () => {
+    expect(ampelFreibord(30)).toBe('gruen')
+    expect(ampelFreibord(10)).toBe('gelb')
+    expect(ampelFreibord(60)).toBe('gelb')
+    expect(ampelFreibord(5)).toBe('rot')
+    expect(ampelFreibord(75)).toBe('rot')
   })
 
   it('Intervall: grün 1–4, gelb 4–7 / 0.33–1, rot >7 / <0.33', () => {
@@ -155,17 +171,18 @@ describe('REFERENZFALL HAMELI: 95 P, V1 2.0 l/s, 30→15 °fH, Parallel MFH 40/2
     expect(e.volumenstromEnthaerter).toBeCloseTo(1.0, 3)
   })
 
-  it('Filtergeschwindigkeit ≈ 35.5 m/h → grün (robust)', () => {
+  it('Filtergeschwindigkeit ≈ 35.6 m/h → grün (robust)', () => {
     const v = velocityMh(flussProFlascheLmin(e.volumenstromEnthaerter, 'parallel'), a.querschnitt)
-    expect(v).toBeCloseTo(35.5, 1)
+    expect(v).toBeCloseTo(35.6, 1)
     expect(ampelVelocity(v, 'robust')).toBe('gruen')
   })
 
-  it('Δp ≈ 0.51 bar → grün im Kompakt-Modus, gelb im Robust-Modus', () => {
-    const dp = druckverlustBar(e.volumenstromEnthaerter, 'parallel', e.vaRefLs, e.dpRefBar)
-    expect(dp).toBeCloseTo(0.51, 2)
+  it('Δp ≈ 0.42 bar (Bett-Formel bei tatsächlicher Geschwindigkeit) → GRÜN', () => {
+    const v = velocityMh(flussProFlascheLmin(e.volumenstromEnthaerter, 'parallel'), a.querschnitt)
+    const dp = druckverlustBar(v, betthoeheM(a.harzProTank!, a.querschnitt))
+    expect(dp).toBeCloseTo(0.42, 2)
+    expect(ampelDp(dp, 'robust')).toBe('gruen')
     expect(ampelDp(dp, 'kompakt')).toBe('gruen')
-    expect(ampelDp(dp, 'robust')).toBe('gelb')
   })
 
   it('Regenerationsintervall ≈ 3.3 Tage → grün', () => {
@@ -199,55 +216,76 @@ describe('REFERENZFALL Niederrohrdorf: 20 P, V1 4.32 m³/h (1.2 l/s), 21→6 °d
     expect(e.volumenstromEnthaerter).toBeCloseTo(0.857, 3)
   })
 
-  it('Pendel Ø10"/40 l: v ≈ 60.9 m/h → kompakt gelb, robust rot', () => {
+  it('Pendel Ø10" (Twin 40/50): v ≈ 61 m/h → kompakt gelb, robust rot; Δp plausibel <1 bar', () => {
     const e = berechne(eingaben)
-    const twin40 = anlage('4401')
-    const v = velocityMh(flussProFlascheLmin(e.volumenstromEnthaerter, 'duplex'), twin40.querschnitt)
-    expect(v).toBeCloseTo(60.9, 1)
+    const twin50 = anlage('4402')
+    const v = velocityMh(flussProFlascheLmin(e.volumenstromEnthaerter, 'duplex'), twin50.querschnitt)
+    expect(v).toBeCloseTo(61.0, 1)
     expect(ampelVelocity(v, 'kompakt')).toBe('gelb')  // knapp über Grüngrenze 60
     expect(ampelVelocity(v, 'robust')).toBe('rot')    // über Gelbgrenze 55
+    // Δp mit Bett-Formel: Twin 50 (0.99 m Bett) bei 61 m/h → ~0.61 bar (vorher fälschlich 1.5)
+    const dp = druckverlustBar(v, betthoeheM(50, twin50.querschnitt))
+    expect(dp).toBeCloseTo(0.61, 2)
+    expect(dp).toBeLessThan(1.0)
   })
 
-  it('Parallel 2×40 l: v ≈ 30.4 m/h → grün', () => {
+  it('Parallel 2×40 l: v ≈ 30.5 m/h → grün', () => {
     const e = berechne({ ...eingaben, anlagentyp: 'parallel' })
     const p40 = anlage('4429')
     const v = velocityMh(flussProFlascheLmin(e.volumenstromEnthaerter, 'parallel'), p40.querschnitt)
-    expect(v).toBeCloseTo(30.4, 1)
+    expect(v).toBeCloseTo(30.5, 1)
     expect(ampelVelocity(v, 'robust')).toBe('gruen')
   })
 
-  it('AUTO-AUSWAHL: robust → Twin 100 (grosse Flasche), kompakt → Twin 40 (Grünbeck-Prinzip)', () => {
+  it('AUTO-AUSWAHL: robust → Twin 75 (Ø13", v 36 grün), kompakt → Twin 40 (Grünbeck-Prinzip)', () => {
     const robust = berechne({ ...eingaben, modus: 'robust' })
     const kompakt = berechne({ ...eingaben, modus: 'kompakt' })
-    expect(robust.empfohleneAnlage?.artNr).toBe('4404')  // MFH 100/Twin, v ≈ 31 m/h
+    // Nach dem 4403-Fix (Tank 1354/13") ist Twin 75 die kleinste robuste Wahl
+    expect(robust.empfohleneAnlage?.artNr).toBe('4403')
     expect(kompakt.empfohleneAnlage?.artNr).toBe('4401') // MFH 40/Twin, v ≈ 61 m/h (gelb zulässig)
   })
 })
 
 describe('Engineering-Checks (Teil B, komplett)', () => {
-  it('liefert alle 9 Parameter mit Ampeln; Füllgrad als Datenlücke', () => {
+  it('liefert alle 9 Parameter; Freibord aus Herstellerdaten gefüllt (KEINE Datenlücke)', () => {
     const e = berechne(BASIS)
     const checks = engineeringChecks(anlage('4398'), kontext(e))
     expect(checks.map(c => c.key)).toEqual([
-      'velocity', 'dp', 'bett', 'fuellgrad', 'intervall', 'beladung', 'natrium', 'ventil', 'anschluss',
+      'velocity', 'dp', 'bett', 'freibord', 'intervall', 'beladung', 'natrium', 'ventil', 'anschluss',
     ])
-    const fuellgrad = checks.find(c => c.key === 'fuellgrad')!
-    expect(fuellgrad.datenluecke).toBe(true)
-    expect(fuellgrad.ampel).toBe('gelb')
-    // Jeder Check hat Grenze, Reserve und Tooltip
+    const freibord = checks.find(c => c.key === 'freibord')!
+    expect(freibord.datenluecke).toBeUndefined()
+    expect(freibord.wertText).toContain('%')
+    expect(freibord.ampel).toBe('gruen') // Tank 735: (20.4−15)/20.4 = 26.5 %
+    // Jeder Check hat Grenze, Einordnung (Verdikt + Marktreferenz) und Tooltip
     for (const c of checks) {
       expect(c.grenze.length).toBeGreaterThan(0)
+      expect(c.einordnung.length).toBeGreaterThan(0)
       expect(c.tooltip.length).toBeGreaterThan(0)
     }
   })
 
-  it('4-Personen-Basisfall auf Twin 15: velocity/dp/bett/intervall/beladung/natrium grün', () => {
+  it('Freibord-Zeile entfällt (nicht «Datenlücke»), wenn das Tankvolumen wirklich fehlt', () => {
+    const e = berechne(BASIS)
+    const ohneVolumen: Anlage = { ...anlage('4398'), innenvolumenL: undefined }
+    const checks = engineeringChecks(ohneVolumen, kontext(e))
+    expect(checks.find(c => c.key === 'freibord')).toBeUndefined()
+  })
+
+  it('Einordnung liefert Verdikt + Marktreferenz', () => {
+    expect(einordnung('dp', 'gruen')).toContain('Marktbegleiter')
+    expect(einordnung('velocity', 'gruen')).toContain('60 m/h')
+    expect(einordnung('intervall', 'rot')).toContain('risiko')
+  })
+
+  it('4-Personen-Basisfall auf Twin 15: velocity/dp/bett/freibord/intervall/beladung grün', () => {
     const e = berechne(BASIS)
     const checks = engineeringChecks(anlage('4398'), kontext(e))
     const byKey = Object.fromEntries(checks.map(c => [c.key, c]))
     expect(byKey.velocity.ampel).toBe('gruen')  // 29.6 m/h
-    expect(byKey.dp.ampel).toBe('gruen')
+    expect(byKey.dp.ampel).toBe('gruen')        // 0.006×29.6×0.60+0.25 ≈ 0.36 bar
     expect(byKey.bett.ampel).toBe('gruen')      // 0.60 m
+    expect(byKey.freibord.ampel).toBe('gruen')  // 26.5 %
     expect(byKey.intervall.ampel).toBe('gruen') // 4.0 Tage (Zwang)
     expect(byKey.beladung.ampel).toBe('gruen')
     expect(byKey.natrium.ampel).toBe('gelb')    // 169 mg/l → 150–200 = gelb
@@ -276,19 +314,20 @@ describe('Engineering-Checks (Teil B, komplett)', () => {
 describe('Datencheck Produkttabelle (Teil C)', () => {
   const report = pruefeKatalog()
 
-  it('prüft alle Katalogeinträge', () => {
+  it('prüft alle Katalogeinträge (inkl. neuer 2xWS2-Baureihe)', () => {
     expect(report.length).toBe(ANLAGEN_KATALOG.length)
+    expect(ANLAGEN_KATALOG.some(a => a.kategorie === 'parallel_2')).toBe(true)
   })
 
-  it('genau EINE bekannte Inkonsistenz: Twin 75 (4403) Tank-Code 1354 (13") vs. Durchmesser 10"', () => {
-    const fehler = report.filter(r => r.status === 'fehler')
-    expect(fehler.map(f => f.artNr)).toEqual(['4403'])
-    expect(fehler[0].probleme.join(' ')).toContain('1354')
-  })
-
-  it('alle übrigen Anlagen sind konsistent (Durchmesser, Betthöhe, Bauart, Namensschema)', () => {
-    for (const r of report.filter(r => r.artNr !== '4403')) {
+  it('nach dem 4403-Fix (Tank 1354/Ø13"): ALLE Anlagen konsistent – Datencheck grün', () => {
+    for (const r of report) {
       expect(r.status, `${r.name}: ${r.probleme.join('; ')}`).toBe('ok')
+    }
+  })
+
+  it('Tanktabelle deckt alle verwendeten Tank-Codes ab', () => {
+    for (const a of ANLAGEN_KATALOG) {
+      expect(TANK_DATEN[a.tank], `Tank ${a.tank} fehlt in TANK_DATEN`).toBeDefined()
     }
   })
 })

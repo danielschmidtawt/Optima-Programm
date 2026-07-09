@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import type { Ergebnisse, Anlage, AnlagenKategorie } from '../calc'
-import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ampelFuerIntervall, betriebFuerAnlage, ANLAGEN_KATALOG } from '../calc'
+import { kategorieLabel, kopfgroesse, pruefeFlussProKopf, ampelFuerIntervall, betriebFuerAnlage, druckverlustFuerAnlage, ANLAGEN_KATALOG } from '../calc'
 import { EngineeringPanel, PlausiBox } from './EngineeringPanel'
 
 interface Props {
@@ -16,7 +16,7 @@ const thStyle: React.CSSProperties = { padding: '3pt 6pt', border: '1px solid #c
 const tdStyle: React.CSSProperties = { padding: '3pt 6pt', border: '1px solid #cbd5e1' }
 
 const KATEGORIEN_REIHENFOLGE: AnlagenKategorie[] = [
-  'einzel_1', 'twin_1', 'parallel_1', 'einzel_1_5', 'parallel_1_5', 'einzel_2',
+  'einzel_1', 'twin_1', 'parallel_1', 'einzel_1_5', 'parallel_1_5', 'einzel_2', 'parallel_2',
 ]
 
 function fmt(n: number, decimals = 1): string {
@@ -440,7 +440,11 @@ export function ResultsPanel({ ergebnisse: e, override, setOverride, pdfZeigeSal
             unit="l/s"
           />
           <StatCard label="Volumenstrom durch Enthärter VE" value={fmt(e.volumenstromEnthaerter, 3)} unit="l/s" />
-          <StatCard label="Druckverlust ΔpE" value={fmt(e.druckverlust, 2)} unit="bar" />
+          <StatCard
+            label="Druckverlust Δp (Bett + Ventil)"
+            value={fmt(angezeigte && e.volumenstromEnthaerter > 0 ? druckverlustFuerAnlage(angezeigte, e.volumenstromEnthaerter) : e.druckverlust, 2)}
+            unit="bar"
+          />
         </div>
       </div>
 

@@ -250,25 +250,25 @@ describe('Plausi-Check 1: Hauptleitung vs. V1', () => {
   })
 })
 
-describe('Plausi-Check 2: Durchfluss pro Kopf', () => {
-  it('Parallel teilt VE auf 2 Köpfe auf', () => {
-    // Herstellerfall: VE ≈ 0.657 l/s auf MFH 50/2x
+describe('Plausi-Check 2: Durchfluss pro Kopf (Herstellerbasis 60/80 m/h)', () => {
+  it('Parallel teilt VE auf 2 Köpfe auf – Herstellerfall jetzt im Nennbereich', () => {
+    // VE ≈ 0.657 l/s auf MFH 50/2x: 19.7 l/min pro Kopf, Nenn 50.6 (A×10)
     const p = pruefeFlussProKopf(0.6574, 'parallel', anlage('4430'))
     expect(p.flussProjKopfLMin).toBeCloseTo(19.7, 1)
-    expect(p.nennProKopfLMin).toBeCloseTo(16.9, 5)
-    expect(p.maxProKopfLMin).toBeCloseTo(33.8, 5)
-    expect(p.status).toBe('spitze') // über Nenn, unter Max – zulässig
+    expect(p.nennProKopfLMin).toBeCloseTo(50.6, 1)
+    expect(p.maxProKopfLMin).toBeCloseTo(67.5, 1)
+    expect(p.status).toBe('ok')
     expect(p.warnung).toBeNull()
   })
 
   it('Simplex: voller VE durch einen Kopf, Überlast wird erkannt', () => {
-    const p = pruefeFlussProKopf(1.2, 'simplex', anlage('4388')) // 72 l/min auf MFH 15
+    const p = pruefeFlussProKopf(1.2, 'simplex', anlage('4388')) // 72 l/min auf MFH 15 (max 33.1)
     expect(p.status).toBe('ueberlast')
     expect(p.warnung).toContain('übersteigt')
   })
 
   it('Nennbereich wird als ok erkannt', () => {
-    const p = pruefeFlussProKopf(0.1, 'simplex', anlage('4397')) // 6 l/min auf MFH 100
+    const p = pruefeFlussProKopf(0.1, 'simplex', anlage('4397')) // 6 l/min auf MFH 100 (Nenn 99.3)
     expect(p.status).toBe('ok')
     expect(p.warnung).toBeNull()
   })
@@ -337,13 +337,14 @@ describe('Zwangsregeneration (Trinkwasser-Hygiene)', () => {
 })
 
 describe('Kopfgrössen', () => {
-  it('Clack-Köpfe sind 5/4" (WS1 & WS1,5), nur WS2 hat 2"', () => {
+  it('Clack-Köpfe sind 5/4" (WS1 & WS1,5), WS2 hat 2"', () => {
     expect(kopfgroesse('einzel_1')).toBe('5/4"')
     expect(kopfgroesse('twin_1')).toBe('5/4"')
     expect(kopfgroesse('parallel_1')).toBe('5/4"')
     expect(kopfgroesse('einzel_1_5')).toBe('5/4"')
     expect(kopfgroesse('parallel_1_5')).toBe('5/4"')
     expect(kopfgroesse('einzel_2')).toBe('2"')
+    expect(kopfgroesse('parallel_2')).toBe('2"')
   })
 })
 
@@ -361,28 +362,42 @@ describe('Katalog-Konsistenz', () => {
     }
   })
 
-  it('Durchflüsse respektieren Geschwindigkeits- UND Kontaktzeitgrenze (pro Tank)', () => {
-    // Grenze 1: Filtergeschwindigkeit 20/40 m/h; Grenze 2: 33.2/66.4 BV/h
+  it('HERSTELLERBASIS: Nenndurchfluss je Flasche = A × 10 l/min (60 m/h), Spitze ≤ 80 m/h', () => {
     for (const a of ANLAGEN_KATALOG) {
       const tanks = a.betriebsart === 'parallel' ? 2 : 1
-      const nennProTank = a.durchflussNormal / tanks
-      const spitzeProTank = a.durchflussSpitze / tanks
-      const harzProTank = a.harzProTank ?? a.harz
-      // Geschwindigkeit in m/h: (l/min × 60) / (dm² × 10)
-      expect(nennProTank * 6 / a.querschnitt).toBeLessThanOrEqual(20.1)
-      expect(spitzeProTank * 6 / a.querschnitt).toBeLessThanOrEqual(40.2)
-      // Spezifische Belastung in BV/h: (l/min × 60) / Harzliter
-      expect(nennProTank * 60 / harzProTank).toBeLessThanOrEqual(33.3)
-      expect(spitzeProTank * 60 / harzProTank).toBeLessThanOrEqual(66.5)
+      const nennErwartet = a.querschnitt * 10
+      const spitzeErwartet = a.querschnitt * (80 / 6)
+      if (a.maxAnschlussFluss == null || nennErwartet * tanks <= a.maxAnschlussFluss) {
+        expect(a.durchflussNormal / tanks).toBeCloseTo(nennErwartet, 0)
+      } else {
+        expect(a.durchflussNormal).toBeCloseTo(a.maxAnschlussFluss, 1) // Verteiler-gekappt
+      }
+      if (a.maxAnschlussFluss == null || spitzeErwartet * tanks <= a.maxAnschlussFluss) {
+        expect(a.durchflussSpitze / tanks).toBeCloseTo(spitzeErwartet, 0)
+      } else {
+        expect(a.durchflussSpitze).toBeCloseTo(a.maxAnschlussFluss, 1)
+      }
     }
   })
 
-  it('MFH 30 (flaches Bett, kontaktzeitbegrenzt) < MFH 50 im Durchfluss – MFH 40/50 gleich (geschwindigkeitsbegrenzt, gleicher Ø)', () => {
-    const p30 = ANLAGEN_KATALOG.find(a => a.artNr === '4428')! // MFH 30/2x
-    const p40 = ANLAGEN_KATALOG.find(a => a.artNr === '4429')! // MFH 40/2x
-    const p50 = ANLAGEN_KATALOG.find(a => a.artNr === '4430')! // MFH 50/2x
-    expect(p30.durchflussSpitze).toBeLessThan(p50.durchflussSpitze)
+  it('Tanks gleichen Durchmessers teilen den Durchfluss (1035/1044/1054 alle Ø10")', () => {
+    const p30 = ANLAGEN_KATALOG.find(a => a.artNr === '4428')!
+    const p40 = ANLAGEN_KATALOG.find(a => a.artNr === '4429')!
+    const p50 = ANLAGEN_KATALOG.find(a => a.artNr === '4430')!
+    expect(p30.durchflussNormal).toBe(p40.durchflussNormal)
     expect(p40.durchflussSpitze).toBe(p50.durchflussSpitze)
+  })
+
+  it('Geometrie & Innenvolumen stammen aus TANK_DATEN (Single Source of Truth)', () => {
+    for (const a of ANLAGEN_KATALOG) {
+      expect(a.innenvolumenL).toBeGreaterThan(0)
+      expect(a.querschnitt).toBeGreaterThan(0)
+      // Twin 75 Fix: Tank 1354 → Ø13"
+      if (a.artNr === '4403') {
+        expect(a.zoll).toBe(13)
+        expect(a.querschnitt).toBeCloseTo(8.56, 2)
+      }
+    }
   })
 
   it('Harzkapazität-Konstante im plausiblen Normbereich (4.5–5.5)', () => {

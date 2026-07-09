@@ -72,8 +72,6 @@ export function AdvancedSettings({ eingaben, update }: Props) {
                   <option value="EUR">EUR</option>
                 </select>
               </div>
-              <Row label="Volumenstrom Apparat (VA)" unit="l/s" value={eingaben.volumenstromApparat} onChange={v => update('volumenstromApparat', v)} step={0.05} />
-              <Row label="Druckverlust Apparat (ΔpA)" unit="bar" value={eingaben.druckverlustApparat} onChange={v => update('druckverlustApparat', v)} step={0.1} />
               <Row label="BW pro Person Richtwert" unit="BW" value={eingaben.bwProPerson} onChange={v => update('bwProPerson', v)} step={0.01} />
             </div>
             <p className="mt-3 text-xs text-slate-400">
